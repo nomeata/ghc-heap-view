@@ -1,3 +1,13 @@
+{-|
+Module      :  GHC.HeapView
+Copyright   :  (c) 2012 Joachim Breitner
+License     :  BSD3
+Maintainer  :  Joachim Breitner <mail@joachim-breitner.de>
+
+With this module, you can investigate the heap representation of Haskell
+values, i.e. to investigate sharing and lazy evaluation.
+-}
+
 {-# LANGUAGE MagicHash, UnboxedTuples, CPP, ForeignFunctionInterface, GHCForeignImportPrim, UnliftedFFITypes, BangPatterns, RecordWildCards #-}
 
 module GHC.HeapView where
