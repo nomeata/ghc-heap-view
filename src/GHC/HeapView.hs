@@ -8,7 +8,6 @@ import GHC.Prim
 import System.Environment
 import GHC.Arr ((!), Array(..), elems)
 
-import Util (ghciTablesNextToCode)
 import GHC.Constants ( wORD_SIZE, tAG_MASK, wORD_SIZE_IN_BITS )
 
 import System.Mem
@@ -69,7 +68,6 @@ instance Storable StgInfoTable where
    sizeOf itbl 
       = sum
         [
-         if ghciTablesNextToCode then 0 else sizeOf (undefined::HalfWord),
          fieldSz ptrs itbl,
          fieldSz nptrs itbl,
          sizeOf (undefined :: HalfWord),
@@ -85,7 +83,6 @@ instance Storable StgInfoTable where
    peek a0
       = runState (castPtr a0)
       $ do
-           unless ghciTablesNextToCode $ (load :: PtrIO HalfWord) >> return ()
            ptrs'   <- load
            nptrs'  <- load
            tipe'   <- load
@@ -347,14 +344,17 @@ dataConInfoPtrToNames ptr = do
   where
     getConDescAddress :: Ptr StgInfoTable -> IO (Ptr Word8)
     getConDescAddress ptr
-      | ghciTablesNextToCode = do
+      | True = do
           offsetToString <- peek (ptr `plusPtr` (negate wORD_SIZE))
           return $ (ptr `plusPtr` stdInfoTableSizeB)
                     `plusPtr` (fromIntegral (offsetToString :: Word))
+    -- This is code for !ghciTablesNextToCode: 
+    {-
       | otherwise = peek . intPtrToPtr
                       . (+ fromIntegral
                             stdInfoTableSizeB)
                         . ptrToIntPtr $ ptr
+    -}
 
     -- hmmmmmm. Is there any way to tell this?
     opt_SccProfilingOn = False
@@ -377,14 +377,7 @@ dataConInfoPtrToNames ptr = do
 getClosureData :: a -> IO Closure
 getClosureData x = do
     (iptr, words, ptrs) <- getClosureRaw x
-    let iptr' | ghciTablesNextToCode = iptr
-              | otherwise = iptr `plusPtr` negate wORD_SIZE
-               -- the info pointer we get back from unpackClosure#
-               -- is to the beginning of the standard info table,
-               -- but the Storable instance for info tables takes
-               -- into account the extra entry pointer when
-               -- !ghciTablesNextToCode, so we must adjust here
-    itbl <- peek iptr'
+    itbl <- peek iptr
     case tipe itbl of 
         t | t >= CONSTR && t <= CONSTR_NOCAF_STATIC -> do
             name <- dataConInfoPtrToNames iptr
