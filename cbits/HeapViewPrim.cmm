@@ -1,0 +1,49 @@
+#include "Cmm.h"
+
+aToInt
+{
+	W_ clos;
+	clos = R1;
+    	RET_N(clos);
+}
+
+slurpClosurezh
+{
+/* args: R1 = closure to analyze */
+// TODO: Consider the absence of ptrs or nonptrs as a special case ?
+
+    W_ clos, len;
+    clos = UNTAG(R1);
+
+    W_ info;
+    info = %GET_STD_INFO(clos);
+
+    (len) = foreign "C" closureSize(clos "ptr") [];
+
+    W_ data_arr_sz;
+    data_arr_sz = SIZEOF_StgArrWords  + WDS(len);
+
+    ALLOC_PRIM (data_arr_sz, R1_PTR, slurpClosurezh);
+
+    W_ data_arr;
+    data_arr = Hp - data_arr_sz + WDS(1);
+
+    SET_HDR(data_arr, stg_ARR_WORDS_info, CCCS);
+    StgArrWords_bytes(data_arr) = WDS(len);
+    W_ p;
+    p = 0;
+for:
+    if(p < len) {
+    	 // W_[BYTE_ARR_CTS(data_arr) + WDS(p)] = StgClosure_payload(clos, p);
+    	 W_[BYTE_ARR_CTS(data_arr) + WDS(p)] = W_[clos + WDS(p)];
+    	 p = p + 1;
+	 goto for;
+    }
+
+    W_ ptrArray;
+
+    ("ptr" ptrArray) = foreign "C" closurePtrs(MyCapability() "ptr", clos "ptr") [];
+
+    RET_NPP(info, data_arr, ptrArray);
+}
+
