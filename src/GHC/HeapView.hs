@@ -293,8 +293,25 @@ allPtrs (MutArrClosure {..}) = mccPayload
 allPtrs (FunClosure {..}) = ptrArgs
 allPtrs (OtherClosure {..}) = hvalues
 
+#ifdef PRIM_SUPPORTS_ANY
 foreign import prim "aToInt" aToInt# :: Any -> Int#
 foreign import prim "slurpClosurezh" slurpClosure# :: Any -> (# Addr#, ByteArray#, Array# b #)
+#else
+-- Workd-around code until http://hackage.haskell.org/trac/ghc/ticket/5931 was
+-- accepted
+
+foreign import prim "aToInt" aToInt'# :: Addr# -> Int#
+foreign import prim "slurpClosurezh" slurpClosure'# :: Addr#  -> (# Addr#, ByteArray#, Array# b #)
+
+-- This is a datatype that has the same layout as Ptr, so that by
+-- unsafeCoerce'ing, we obtain the Addr of the wrapped value
+data Ptr' a = Ptr' a
+
+aToInt# :: Any -> Int#
+aToInt# a = case Ptr' a of mb@(Ptr' _) -> case unsafeCoerce# mb :: Ptr () of Ptr addr -> aToInt'# addr
+slurpClosure# :: Any -> (# Addr#, ByteArray#, Array# b #)
+slurpClosure# a = case Ptr' a of mb@(Ptr' _) -> case unsafeCoerce# mb :: Ptr () of Ptr addr -> slurpClosure'# addr
+#endif
 
 --pClosure x = do
 --    getClosure x >>= print
