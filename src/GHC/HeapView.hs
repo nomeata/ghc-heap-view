@@ -10,7 +10,22 @@ values, i.e. to investigate sharing and lazy evaluation.
 
 {-# LANGUAGE MagicHash, UnboxedTuples, CPP, ForeignFunctionInterface, GHCForeignImportPrim, UnliftedFFITypes, BangPatterns, RecordWildCards #-}
 
-module GHC.HeapView where
+module GHC.HeapView (
+    -- * Heap data types
+    Closure(..),
+    allPtrs,
+    ClosureType(..),
+    StgInfoTable(..),
+    HalfWord,
+    -- * Reading from the heap
+    getClosureData,
+    getBoxedClosureData,
+    getClosureRaw,
+    -- * Boxes
+    Box(..),
+    asBox,
+    )
+    where
 
 import System.IO.Unsafe
 import GHC.Exts
@@ -33,16 +48,17 @@ import Data.Bits
 import Data.Char
 import Control.Monad
 
-newtype HValue = HValue Any
-
--- A Safegard of HValues
-data Box = Box HValue
+-- | An arbitrarily Haskell value in a safe Box. The point is that even
+-- unevaluated thunks can safely be moved around inside the Box, and when
+-- required, e.g. in 'getBoxedClosureData', the function knows how far it has
+-- to evalue the argument.
+data Box = Box Any
 
 type HalfWord = Word32
 
 instance Show Box where
 -- From libraries/base/GHC/Ptr.lhs
-   showsPrec _ (Box (HValue any)) rs =
+   showsPrec _ (Box any) rs =
     -- unsafePerformIO (print "↓" >> pClosure any) `seq`    
     pad_out (showHex addr "") ++ (if tag>0 then "/" ++ show tag else "") ++ rs
      where
@@ -53,17 +69,31 @@ instance Show Box where
        pad_out ls = 
           '0':'x':(replicate (2*wORD_SIZE - length ls) '0') ++ ls
 
+{-|
+  This takes an arbitrary value and puts it into a box. Note that calls like
+
+  > asBox (head list) 
+
+  will put the thunk \"head list\" into the box, /not/ the element at the head
+  of the list. For that, use careful case expressions:
+
+  > case list of x:_ -> asBox x
+-}
 asBox :: a -> Box
 asBox x = Box (unsafeCoerce# x)
 
 {-
- - StgInfoTable parsing derived from ByteCodeItbls.lhs
- - Removed the code parameter for now
- - Replaced Type by an enumeration
- - Remove stuff dependent on GHCI_TABLES_NEXT_TO_CODE
+   StgInfoTable parsing derived from ByteCodeItbls.lhs
+   Removed the code parameter for now
+   Replaced Type by an enumeration
+   Remove stuff dependent on GHCI_TABLES_NEXT_TO_CODE
  -}
 
-
+{-| This is a somewhat faithful representation of an info table. See
+   <http://hackage.haskell.org/trac/ghc/browser/includes/rts/storage/InfoTables.h>
+   for more details on this data structure. Note that the 'Storable' instance
+   provided here does _not_ support writing.
+ -}
 data StgInfoTable = StgInfoTable {
    ptrs   :: HalfWord,
    nptrs  :: HalfWord,
@@ -127,7 +157,7 @@ store x = do addr <- advance
              lift (poke addr x)
 
 {-
- - Embedded StateT, also from ByteCodeItbls
+   Embedded StateT, also from ByteCodeItbls
  -}
 
 newtype State s m a = State (s -> m (s, a))
@@ -143,10 +173,14 @@ runState :: (Monad m) => s -> State s m a -> m a
 runState s (State m) = m s >>= return . snd
 
 {-
- - Data Type representing Closures
+   Data Type representing Closures
  -}
 
 
+{-| A closure type enumeration, in order matching the actual value on the heap.
+   Needs to be synchronized with
+   <http://hackage.haskell.org/trac/ghc/browser/includes/rts/storage/ClosureTypes.h>
+ -}
 data ClosureType =
 	  INVALID_OBJECT
 	| CONSTR
@@ -211,6 +245,10 @@ data ClosureType =
 	| WHITEHOLE
  deriving (Show, Eq, Enum, Ord)
 
+{-| This is the main data type of this module, representing a Haskell value on
+  the heap. This reflects
+  <http://hackage.haskell.org/trac/ghc/browser/includes/rts/storage/Closures.h>
+ -}
 data Closure =
     ConsClosure {
         info         :: StgInfoTable 
@@ -285,6 +323,8 @@ data Closure =
     }
  deriving (Show)
 
+-- | For generic code, this function returns all referenced closures. 
+allPtrs :: Closure -> [Box]
 allPtrs (ConsClosure {..}) = ptrArgs
 allPtrs (ThunkClosure {..}) = ptrArgs
 allPtrs (SelectorClosure {..}) = [selectee]
@@ -323,6 +363,11 @@ slurpClosure# a = slurpClosure'# (aToWord# a)
 --pClosure x = do
 --    getClosure x >>= print
 
+-- | This returns the raw representation of the given argument. The second
+-- component of the triple are the words on the heap, and the third component
+-- are those words that are actually pointers. Once back in Haskell word, the
+-- 'Word'  may be outdated after a garbage collector run, but the corresponding
+-- 'Box' will still point to the correct value.
 getClosureRaw :: a -> IO (Ptr StgInfoTable, [Word], [Box])
 getClosureRaw x =
     case slurpClosure# (unsafeCoerce# x) of
@@ -338,13 +383,6 @@ amap' :: (t -> b) -> Array Int t -> [b]
 amap' f (Array i0 i _ arr#) = map g [0 .. i - i0]
     where g (I# i#) = case indexArray# arr# i# of
                           (# e #) -> f e
-
-
-
--- #include "../includes/rts/storage/ClosureTypes.h"
-
-getHValueClosureData :: Box -> IO Closure
-getHValueClosureData b@(Box a) = getClosureData a
 
 -- derived from vacuum-1.0.0.2/src/GHC/Vacuum/Internal.hs, which got it from
 -- compiler/ghci/DebuggerUtils.hs
@@ -386,6 +424,10 @@ dataConInfoPtrToNames ptr = do
     stdInfoTableSizeB = stdInfoTableSizeW * wORD_SIZE
     
 
+-- | This function returns parsed heap representation of the argument _at this
+-- moment_, even if it is unevaluated or an indirection or other exotic stuff.
+-- Beware when passing something to this function, the same caveats as for
+-- 'asBox' apply.
 getClosureData :: a -> IO Closure
 getClosureData x = do
     (iptr, words, ptrs) <- getClosureRaw x
@@ -441,3 +483,8 @@ getClosureData x = do
 
         --  return $ OtherClosure itbl ptrs words
         x -> error $ "getClosureData: Cannot handle closure type " ++ show x
+
+-- | Like 'getClosureData', but taking a 'Box', so it is easier to work with.
+getBoxedClosureData :: Box -> IO Closure
+getBoxedClosureData b@(Box a) = getClosureData a
+

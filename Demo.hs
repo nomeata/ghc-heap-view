@@ -49,7 +49,7 @@ main = do
     getClosureData x >>= print
     IndClosure {indirectee = target} <- getClosureData x
     putStrLn $ "The thunk was replaced by an indirection. If we look at the target, " ++ show target ++ ", we see that it is a newly created cons-cell referencing the original location of x:"
-    getHValueClosureData target >>= print
+    getBoxedClosureData target >>= print
     performGC
     putStrLn $ "After running the garbage collector (performGC), we find that the address of x is now " ++ show (asBox x) ++ " and that the self-reference is without indirections:"
     getClosureData x >>= print
@@ -59,7 +59,7 @@ recurse :: Int -> Box -> IO ()
 recurse m = go 0
   where go i b = if i >= m then return () else do
             putStrLn $ ind ++ show b
-            c <- getHValueClosureData b
+            c <- getBoxedClosureData b
             putStrLn $ ind ++ show c
             mapM_ (go (succ i)) (allPtrs c)
           where

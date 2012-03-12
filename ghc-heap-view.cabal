@@ -3,7 +3,7 @@ Version:             0.1
 Synopsis:            Extract the heap representation of Haskell values and thunks
 Description:
   This library provides functions to introspect the Haskell heap, for example
-  to investigate sharing and lazy eavaluation.
+  to investigate sharing and lazy evaluation.
   .
   It has been inspired by (and taken code from) the vacuum package and the GHCi
   debugger, but also allows to investiage thunks and other closures. 
@@ -11,6 +11,7 @@ License:             BSD3
 License-file:        LICENSE
 Author:              Joachim Breitner
 Maintainer:          Joachim Breitner <mail@joachim-breitner.de>
+Copyright:           2012 Joachim Breitner
 Category:            Debug, GHC
 Build-type:          Simple
 Cabal-version:       >=1.2
