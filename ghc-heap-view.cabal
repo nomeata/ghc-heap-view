@@ -24,7 +24,7 @@ Flag prim-supports-any
 Library
   Exposed-modules: GHC.HeapView 
   Build-depends:
-    base,
+    base == 4.5.*,
     ghc,
     ghc-prim
   C-Sources: cbits/HeapView.c cbits/HeapViewPrim.cmm
