@@ -21,7 +21,6 @@ import Numeric          ( showHex )
 import Data.Word
 import Data.Bits
 import Data.Char
-import GHC.Integer (wordToInteger)
 import Control.Monad
 
 newtype HValue = HValue Any
@@ -37,7 +36,7 @@ instance Show Box where
     -- unsafePerformIO (print "↓" >> pClosure any) `seq`    
     pad_out (showHex addr "") ++ (if tag>0 then "/" ++ show tag else "") ++ rs
      where
-       ptr  = wordToInteger(int2Word#(aToInt# any))
+       ptr  = W# (int2Word# (aToInt# any))
        tag  = ptr .&. fromIntegral tAG_MASK -- ((1 `shiftL` TAG_BITS) -1)
        addr = ptr - tag
         -- want 0s prefixed to pad it out to a fixed length.
