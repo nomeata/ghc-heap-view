@@ -14,7 +14,7 @@ Maintainer:          Joachim Breitner <mail@joachim-breitner.de>
 Copyright:           2012 Joachim Breitner
 Category:            Debug, GHC
 Build-type:          Simple
-Cabal-version:       >=1.2
+Cabal-version:       >=1.6
 Extra-source-files:  Demo.hs
 
 Flag prim-supports-any
@@ -32,5 +32,8 @@ Library
 
   if flag(prim-supports-any)
     cpp-options: -DPRIM_SUPPORTS_ANY
- 
   
+source-repository head
+  type:     darcs
+  location: http://darcs.nomeata.de/darcswatch/
+
