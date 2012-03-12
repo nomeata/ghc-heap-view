@@ -296,20 +296,18 @@ foreign import prim "slurpClosurezh" slurpClosure# :: Any -> (# Addr#, ByteArray
 -- Workd-around code until http://hackage.haskell.org/trac/ghc/ticket/5931 was
 -- accepted
 
-foreign import prim "aToWordzh" aToWord'# :: Addr# -> Word#
-foreign import prim "slurpClosurezh" slurpClosure'# :: Addr#  -> (# Addr#, ByteArray#, Array# b #)
+-- foreign import prim "aToWordzh" aToWord'# :: Addr# -> Word#
+foreign import prim "slurpClosurezh" slurpClosure'# :: Word#  -> (# Addr#, ByteArray#, Array# b #)
 
 -- This is a datatype that has the same layout as Ptr, so that by
 -- unsafeCoerce'ing, we obtain the Addr of the wrapped value
 data Ptr' a = Ptr' a
 
-addrOf# :: Any -> Addr#
-addrOf# a = case Ptr' a of mb@(Ptr' _) -> case unsafeCoerce# mb :: Ptr () of Ptr addr -> addr
-
 aToWord# :: Any -> Word#
-aToWord# a  = aToWord'# (addrOf# a)
+aToWord# a = case Ptr' a of mb@(Ptr' _) -> case unsafeCoerce# mb :: Word of W# addr -> addr
+
 slurpClosure# :: Any -> (# Addr#, ByteArray#, Array# b #)
-slurpClosure# a = slurpClosure'# (addrOf# a)
+slurpClosure# a = slurpClosure'# (aToWord# a)
 #endif
 
 --pClosure x = do
