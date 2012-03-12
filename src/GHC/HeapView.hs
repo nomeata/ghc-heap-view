@@ -8,8 +8,8 @@ import GHC.Prim
 import System.Environment
 import GHC.Arr ((!), Array(..), elems)
 
-import Constants        ( wORD_SIZE )
 import Util (ghciTablesNextToCode)
+import GHC.Constants ( wORD_SIZE, tAG_MASK, wORD_SIZE_IN_BITS )
 
 import System.Mem
 import System.Mem.StableName
@@ -30,8 +30,6 @@ newtype HValue = HValue Any
 -- A Safegard of HValues
 data Box = Box HValue
 
-#include "MachDeps.h"
-
 type HalfWord = Word32
 
 instance Show Box where
@@ -41,11 +39,11 @@ instance Show Box where
     pad_out (showHex addr "") ++ (if tag>0 then "/" ++ show tag else "") ++ rs
      where
        ptr  = wordToInteger(int2Word#(aToInt# any))
-       tag  = ptr `mod` fromIntegral wORD_SIZE
+       tag  = ptr .&. fromIntegral tAG_MASK -- ((1 `shiftL` TAG_BITS) -1)
        addr = ptr - tag
         -- want 0s prefixed to pad it out to a fixed length.
        pad_out ls = 
-          '0':'x':(replicate (2*SIZEOF_HSPTR - length ls) '0') ++ ls
+          '0':'x':(replicate (2*wORD_SIZE - length ls) '0') ++ ls
 
 asBox :: a -> Box
 asBox x = Box (unsafeCoerce# x)
@@ -79,7 +77,7 @@ instance Storable StgInfoTable where
         ]
 
    alignment _ 
-      = SIZEOF_VOID_P
+      = wORD_SIZE
 
    poke a0 itbl
       = error "Storable StgInfoTable is read-only"
@@ -401,13 +399,13 @@ getClosureData x = do
         AP ->
             return $ APClosure itbl 
                 (fromIntegral $ words !! 2)
-                (fromIntegral $ shiftR (words !! 2) (wORD_SIZE*4))
+                (fromIntegral $ shiftR (words !! 2) (wORD_SIZE_IN_BITS `div` 2))
                 (head ptrs) (tail ptrs)
 
         PAP ->
             return $ PAPClosure itbl 
                 (fromIntegral $ words !! 2)
-                (fromIntegral $ shiftR (words !! 2) (wORD_SIZE*4))
+                (fromIntegral $ shiftR (words !! 2) (wORD_SIZE_IN_BITS `div` 2))
                 (head ptrs) (tail ptrs)
 
         THUNK_SELECTOR ->
@@ -423,7 +421,7 @@ getClosureData x = do
         BCO ->
             return $ BCOClosure itbl (ptrs !! 0) (ptrs !! 1) (ptrs !! 2)
                 (fromIntegral $ words !! 4)
-                (fromIntegral $ shiftR (words !! 4) (wORD_SIZE*4))
+                (fromIntegral $ shiftR (words !! 4) (wORD_SIZE_IN_BITS `div` 2))
                 (words !! 5)
 
         ARR_WORDS ->

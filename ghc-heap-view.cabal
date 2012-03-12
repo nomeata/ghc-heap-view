@@ -22,7 +22,11 @@ Flag prim-supports-any
 
 Library
   Exposed-modules: GHC.HeapView 
-  Build-depends:  base, ghc, integer-gmp, ghc-prim
+  Build-depends:
+    base,
+    ghc,
+    ghc-prim,
+    integer-gmp
   C-Sources: cbits/HeapView.c cbits/HeapViewPrim.cmm
   Hs-source-dirs: src/
 
