@@ -22,9 +22,9 @@ main = do
     getClosureData l >>= print
     putStrLn $ "The second one, l2, found at " ++ show (asBox l2) ++ " is locally defined as l2 = 4:l. See how the cons-cell references l!"
     getClosureData l2 >>= print
-    putStrLn $ "And here is the list args (" ++ show (asBox args) ++ ") that is not known at compiletime, as it depends on the command line arguemnts:"
+    putStrLn $ "And here is the list args (" ++ show (asBox args) ++ ") that is static, but not known at compiletime, as it depends on the command line arguments:"
     getClosureData args >>= print
-    putStrLn $ "And now we have, at " ++ show (asBox x) ++ ", the concatenation of them, but unevaluated. The thunk keeps a reference to l2 and args, but not l, as that is at a static address:"
+    putStrLn $ "And now we have, at " ++ show (asBox x) ++ ", the concatenation of them, but unevaluated. The thunk keeps a reference to l2 and args, but not l, as that is at a static address, unless you are running this in GHCi:"
     getClosureData x >>= print
 
     putStrLn ""
