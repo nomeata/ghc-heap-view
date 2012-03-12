@@ -1,6 +1,6 @@
 #include "Cmm.h"
 
-aToInt
+aToWordzh
 {
 	W_ clos;
 	clos = R1;
