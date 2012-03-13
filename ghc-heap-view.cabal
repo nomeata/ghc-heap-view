@@ -7,6 +7,9 @@ Description:
   .
   It has been inspired by (and taken code from) the vacuum package and the GHCi
   debugger, but also allows to investiage thunks and other closures. 
+  .
+  The work on this package has been supported by the Deutsche Telekom Stiftung
+  <http://telekom-stiftung.de>.
 License:             BSD3
 License-file:        LICENSE
 Author:              Joachim Breitner
