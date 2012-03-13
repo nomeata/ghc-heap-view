@@ -17,8 +17,9 @@ main = do
     let x = l ++ l2 ++ args
     performGC
     putStrLn "ghc-heap-view-demo"
+    putStrLn ""
     putStrLn "Here are a few different lists."
-    putStrLn $ "The first one, l, found at " ++ show (asBox l) ++ " is a module-level constant, and fully evaluated:"
+    putStrLn $ "The first one, l, found at " ++ show (asBox l) ++ " (where the /2 is the pointer tag information) is a module-level constant, and fully evaluated:"
     getClosureData l >>= print
     putStrLn $ "The second one, l2, found at " ++ show (asBox l2) ++ " is locally defined as l2 = 4:l. See how the cons-cell references l!"
     getClosureData l2 >>= print
