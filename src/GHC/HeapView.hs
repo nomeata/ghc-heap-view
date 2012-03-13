@@ -27,26 +27,14 @@ module GHC.HeapView (
     )
     where
 
-import System.IO.Unsafe
 import GHC.Exts
-import GHC.Prim 
-import System.Environment
-import GHC.Arr ((!), Array(..), elems)
+import GHC.Arr (Array(..))
 
 import GHC.Constants ( wORD_SIZE, tAG_MASK, wORD_SIZE_IN_BITS )
 
-import System.Mem
-import System.Mem.StableName
 import Foreign
-import Foreign.C
-import Foreign.Ptr 
-import Foreign.Storable 
-import Foreign.Marshal.Array
 import Numeric          ( showHex )
-import Data.Word
-import Data.Bits
 import Data.Char
-import Control.Monad
 
 -- | An arbitrarily Haskell value in a safe Box. The point is that even
 -- unevaluated thunks can safely be moved around inside the Box, and when
@@ -58,11 +46,11 @@ type HalfWord = Word32
 
 instance Show Box where
 -- From libraries/base/GHC/Ptr.lhs
-   showsPrec _ (Box any) rs =
-    -- unsafePerformIO (print "↓" >> pClosure any) `seq`    
+   showsPrec _ (Box a) rs =
+    -- unsafePerformIO (print "↓" >> pClosure a) `seq`    
     pad_out (showHex addr "") ++ (if tag>0 then "/" ++ show tag else "") ++ rs
      where
-       ptr  = W# (aToWord# any)
+       ptr  = W# (aToWord# a)
        tag  = ptr .&. fromIntegral tAG_MASK -- ((1 `shiftL` TAG_BITS) -1)
        addr = ptr - tag
         -- want 0s prefixed to pad it out to a fixed length.
@@ -116,7 +104,7 @@ instance Storable StgInfoTable where
    alignment _ 
       = wORD_SIZE
 
-   poke a0 itbl
+   poke _a0 _itbl
       = error "Storable StgInfoTable is read-only"
 
    peek a0
@@ -152,10 +140,6 @@ sizeOfPointee :: (Storable a) => Ptr a -> Int
 sizeOfPointee addr = sizeOf (typeHack addr)
     where typeHack = undefined :: Ptr a -> a
 
-store :: Storable a => a -> PtrIO ()
-store x = do addr <- advance
-             lift (poke addr x)
-
 {-
    Embedded StateT, also from ByteCodeItbls
  -}
@@ -167,6 +151,7 @@ instance Monad m => Monad (State s m) where
   State m >>= k = State (\s -> m s >>= \(s', a) -> case k a of State n -> n s')
   fail str      = State (\_ -> fail str)
 
+lift :: Monad m => m a -> State s m a
 lift m = State (\s -> m >>= \a -> return (s, a))
 
 runState :: (Monad m) => s -> State s m a -> m a
@@ -295,7 +280,7 @@ data Closure =
     ArrWordsClosure {
         info         :: StgInfoTable 
         , bytes      :: Word
-        , words      :: [Word]
+        , arrWords   :: [Word]
     } |
     MutArrClosure {
         info         :: StgInfoTable 
@@ -319,7 +304,7 @@ data Closure =
     OtherClosure {
         info         :: StgInfoTable 
         , hvalues    :: [Box]
-        , words      :: [Word]
+        , rawWords   :: [Word]
     }
  deriving (Show)
 
@@ -335,6 +320,7 @@ allPtrs (BCOClosure {..}) = [instrs,literals,bcoptrs]
 allPtrs (ArrWordsClosure {..}) = []
 allPtrs (MutArrClosure {..}) = mccPayload
 allPtrs (FunClosure {..}) = ptrArgs
+allPtrs (BlockingQueueClosure {..}) = [link, blackHole, owner, queue]
 allPtrs (OtherClosure {..}) = hvalues
 
 
@@ -373,10 +359,10 @@ getClosureRaw x =
     case slurpClosure# (unsafeCoerce# x) of
         (# iptr, dat, ptrs #) -> do
             let nelems = (I# (sizeofByteArray# dat)) `div` wORD_SIZE
-                words = [W# (indexWordArray# dat i) | I# i <- [0.. fromIntegral nelems -1] ]
+                rawWords = [W# (indexWordArray# dat i) | I# i <- [0.. fromIntegral nelems -1] ]
                 pelems = I# (sizeofArray# ptrs) 
                 ptrList = amap' Box $ Array 0 (pelems - 1) pelems ptrs
-            ptrList `seq` words `seq` return (Ptr iptr, words, ptrList)
+            ptrList `seq` rawWords `seq` return (Ptr iptr, rawWords, ptrList)
 
 -- From compiler/ghci/RtClosureInspect.hs
 amap' :: (t -> b) -> Array Int t -> [b]
@@ -393,10 +379,10 @@ dataConInfoPtrToNames ptr = do
     return $ fmap (chr . fromIntegral) wl
   where
     getConDescAddress :: Ptr StgInfoTable -> IO (Ptr Word8)
-    getConDescAddress ptr
+    getConDescAddress ptr'
       | True = do
-          offsetToString <- peek (ptr `plusPtr` (negate wORD_SIZE))
-          return $ (ptr `plusPtr` stdInfoTableSizeB)
+          offsetToString <- peek (ptr' `plusPtr` (negate wORD_SIZE))
+          return $ (ptr' `plusPtr` stdInfoTableSizeB)
                     `plusPtr` (fromIntegral (offsetToString :: Word))
     -- This is code for !ghciTablesNextToCode: 
     {-
@@ -430,29 +416,29 @@ dataConInfoPtrToNames ptr = do
 -- 'asBox' apply.
 getClosureData :: a -> IO Closure
 getClosureData x = do
-    (iptr, words, ptrs) <- getClosureRaw x
+    (iptr, wds, ptrs) <- getClosureRaw x
     itbl <- peek iptr
     case tipe itbl of 
         t | t >= CONSTR && t <= CONSTR_NOCAF_STATIC -> do
             name <- dataConInfoPtrToNames iptr
-            return $ ConsClosure itbl ptrs (drop (length ptrs + 1) words) name
+            return $ ConsClosure itbl ptrs (drop (length ptrs + 1) wds) name
 
         t | t >= THUNK && t <= THUNK_STATIC -> do
-            return $ ThunkClosure itbl ptrs (drop (length ptrs + 2) words)
+            return $ ThunkClosure itbl ptrs (drop (length ptrs + 2) wds)
 
         t | t >= FUN && t <= FUN_STATIC -> do
-            return $ FunClosure itbl ptrs (drop (length ptrs + 1) words)
+            return $ FunClosure itbl ptrs (drop (length ptrs + 1) wds)
 
         AP ->
             return $ APClosure itbl 
-                (fromIntegral $ words !! 2)
-                (fromIntegral $ shiftR (words !! 2) (wORD_SIZE_IN_BITS `div` 2))
+                (fromIntegral $ wds !! 2)
+                (fromIntegral $ shiftR (wds !! 2) (wORD_SIZE_IN_BITS `div` 2))
                 (head ptrs) (tail ptrs)
 
         PAP ->
             return $ PAPClosure itbl 
-                (fromIntegral $ words !! 2)
-                (fromIntegral $ shiftR (words !! 2) (wORD_SIZE_IN_BITS `div` 2))
+                (fromIntegral $ wds !! 2)
+                (fromIntegral $ shiftR (wds !! 2) (wORD_SIZE_IN_BITS `div` 2))
                 (head ptrs) (tail ptrs)
 
         THUNK_SELECTOR ->
@@ -467,24 +453,24 @@ getClosureData x = do
 
         BCO ->
             return $ BCOClosure itbl (ptrs !! 0) (ptrs !! 1) (ptrs !! 2)
-                (fromIntegral $ words !! 4)
-                (fromIntegral $ shiftR (words !! 4) (wORD_SIZE_IN_BITS `div` 2))
-                (words !! 5)
+                (fromIntegral $ wds !! 4)
+                (fromIntegral $ shiftR (wds !! 4) (wORD_SIZE_IN_BITS `div` 2))
+                (wds !! 5)
 
         ARR_WORDS ->
-            return $ ArrWordsClosure itbl (words !! 1) (drop 2 words)
+            return $ ArrWordsClosure itbl (wds !! 1) (drop 2 wds)
         MUT_ARR_PTRS_FROZEN ->
-            return $ MutArrClosure itbl (words !! 2) (words !! 3) ptrs
+            return $ MutArrClosure itbl (wds !! 2) (wds !! 3) ptrs
 
         BLOCKING_QUEUE ->
-          return $ OtherClosure itbl ptrs words
+          return $ OtherClosure itbl ptrs wds
         --    return $ BlockingQueueClosure itbl
         --        (ptrs !! 0) (ptrs !! 1) (ptrs !! 2) (ptrs !! 3)
 
-        --  return $ OtherClosure itbl ptrs words
-        x -> error $ "getClosureData: Cannot handle closure type " ++ show x
+        --  return $ OtherClosure itbl ptrs wds
+        closure -> error $ "getClosureData: Cannot handle closure type " ++ show closure
 
 -- | Like 'getClosureData', but taking a 'Box', so it is easier to work with.
 getBoxedClosureData :: Box -> IO Closure
-getBoxedClosureData b@(Box a) = getClosureData a
+getBoxedClosureData (Box a) = getClosureData a
 
