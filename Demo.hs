@@ -45,7 +45,7 @@ main = do
     let !(I# m') = length args + 23
     let f = \x n -> take (I# m + I# x) n ++ args
         t = f m' l2
-    putStrLn $ "So here is (" ++ show (asBox f) ++ "), referncing its free variables args and 42:"
+    putStrLn $ "So here is (" ++ show (asBox f) ++ "), referencing its free variables args and 42:"
     getClosureData f >>= printInd
     putStrLn "And t is a thunk that applies f (also referenced here) to an unboxed value (23) and l2:"
     getClosureData t >>= printInd
