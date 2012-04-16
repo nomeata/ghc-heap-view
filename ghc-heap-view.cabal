@@ -17,7 +17,7 @@ Maintainer:          Joachim Breitner <mail@joachim-breitner.de>
 Copyright:           2012 Joachim Breitner
 Category:            Debug, GHC
 Build-type:          Simple
-Cabal-version:       >=1.6
+Cabal-version:       >=1.14
 Extra-source-files:  Demo.hs
 
 Flag prim-supports-any
@@ -26,6 +26,7 @@ Flag prim-supports-any
 
 Library
   Exposed-modules: GHC.HeapView 
+  Default-Language:    Haskell2010
   Build-depends:
     base == 4.5.*,
     ghc
