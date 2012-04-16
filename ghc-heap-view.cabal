@@ -9,7 +9,7 @@ Description:
   debugger, but also allows to investiage thunks and other closures. 
   .
   The work on this package has been supported by the Deutsche Telekom Stiftung
-  <http://telekom-stiftung.de>.
+  (<http://telekom-stiftung.de>).
 License:             BSD3
 License-file:        LICENSE
 Author:              Joachim Breitner
@@ -38,5 +38,4 @@ Library
   
 source-repository head
   type:     darcs
-  location: http://darcs.nomeata.de/darcswatch/
-
+  location: http://darcs.nomeata.de/ghc-heap-view/
