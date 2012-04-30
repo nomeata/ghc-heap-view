@@ -24,12 +24,13 @@ module GHC.HeapView (
     -- * Boxes
     Box(..),
     asBox,
-    aToWord#
     )
     where
 
 import GHC.Exts
-import GHC.Arr (Array(..))
+import GHC.Prim 
+import System.Environment
+import GHC.Arr ((!), Array(..), elems)
 
 import GHC.Constants ( wORD_SIZE, tAG_MASK, wORD_SIZE_IN_BITS )
 
@@ -57,6 +58,11 @@ instance Show Box where
         -- want 0s prefixed to pad it out to a fixed length.
        pad_out ls = 
           '0':'x':(replicate (2*wORD_SIZE - length ls) '0') ++ ls
+
+instance Eq Box where
+  Box a == Box b = case reallyUnsafePtrEquality# a b of
+    1# -> True
+    _  -> False
 
 {-|
   This takes an arbitrary value and puts it into a box. Note that calls like
