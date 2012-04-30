@@ -24,6 +24,7 @@ module GHC.HeapView (
     -- * Boxes
     Box(..),
     asBox,
+    aToWord#
     )
     where
 
@@ -289,6 +290,16 @@ data Closure =
         , mccPayload :: [Box]
         -- Card table ignored
     } |
+    MutVarClosure {
+        info         :: StgInfoTable 
+        , var        :: Box
+    } |
+    MVarClosure {
+        info         :: StgInfoTable 
+        , queueHead  :: Box
+        , queueTail  :: Box
+        , value      :: Box
+    } |
     FunClosure {
         info         :: StgInfoTable 
         , ptrArgs    :: [Box]
@@ -319,6 +330,8 @@ allPtrs (PAPClosure {..}) = fun:payload
 allPtrs (BCOClosure {..}) = [instrs,literals,bcoptrs]
 allPtrs (ArrWordsClosure {..}) = []
 allPtrs (MutArrClosure {..}) = mccPayload
+allPtrs (MutVarClosure {..}) = [var]
+allPtrs (MVarClosure {..}) = [queueHead,queueTail,value]
 allPtrs (FunClosure {..}) = ptrArgs
 allPtrs (BlockingQueueClosure {..}) = [link, blackHole, owner, queue]
 allPtrs (OtherClosure {..}) = hvalues
@@ -460,7 +473,7 @@ getClosureData x = do
         ARR_WORDS ->
             return $ ArrWordsClosure itbl (wds !! 1) (drop 2 wds)
         MUT_ARR_PTRS_FROZEN ->
-            return $ MutArrClosure itbl (wds !! 2) (wds !! 3) ptrs
+            return $ MutArrClosure itbl (words !! 2) (words !! 3) ptrs
 
         BLOCKING_QUEUE ->
           return $ OtherClosure itbl ptrs wds

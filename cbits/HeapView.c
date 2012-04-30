@@ -234,9 +234,18 @@ StgMutArrPtrs *closurePtrs(Capability *cap, StgClosure *closure) {
         case MUT_ARR_PTRS_CLEAN:
         case MUT_ARR_PTRS_DIRTY:
         case MUT_ARR_PTRS_FROZEN:
+        case MUT_ARR_PTRS_FROZEN0:
             for (i = 0; i < ((StgMutArrPtrs *)closure)->ptrs; ++i) {
                 ptrs[nptrs++] = ((StgMutArrPtrs *)closure)->payload[i];
             }
+            break;
+        case MUT_VAR_CLEAN:
+            ptrs[nptrs++] = ((StgMutVar *)closure)->var;
+            break;
+        case MVAR_CLEAN:
+            ptrs[nptrs++] = (StgClosure *)((StgMVar *)closure)->head;
+            ptrs[nptrs++] = (StgClosure *)((StgMVar *)closure)->tail;
+            ptrs[nptrs++] = ((StgMVar *)closure)->value;
             break;
 
         default:
