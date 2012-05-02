@@ -28,9 +28,7 @@ module GHC.HeapView (
     where
 
 import GHC.Exts
-import GHC.Prim 
-import System.Environment
-import GHC.Arr ((!), Array(..), elems)
+import GHC.Arr (Array(..))
 
 import GHC.Constants ( wORD_SIZE, tAG_MASK, wORD_SIZE_IN_BITS )
 
@@ -478,8 +476,15 @@ getClosureData x = do
 
         ARR_WORDS ->
             return $ ArrWordsClosure itbl (wds !! 1) (drop 2 wds)
-        MUT_ARR_PTRS_FROZEN ->
-            return $ MutArrClosure itbl (words !! 2) (words !! 3) ptrs
+
+        t | t == MUT_ARR_PTRS_FROZEN || t == MUT_ARR_PTRS_FROZEN0 ->
+            return $ MutArrClosure itbl (wds !! 1) (wds !! 2) ptrs
+
+        t | t == MUT_VAR_CLEAN || t == MUT_VAR_DIRTY ->
+            return $ MutVarClosure itbl (head ptrs)
+
+        t | t == MVAR_CLEAN || t == MVAR_DIRTY ->
+            return $ MVarClosure itbl (ptrs !! 0) (ptrs !! 1) (ptrs !! 2)
 
         BLOCKING_QUEUE ->
           return $ OtherClosure itbl ptrs wds
