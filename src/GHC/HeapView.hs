@@ -35,6 +35,7 @@ import GHC.Constants ( wORD_SIZE, tAG_MASK, wORD_SIZE_IN_BITS )
 import Foreign
 import Numeric          ( showHex )
 import Data.Char
+import Data.List        ( intersperse )
 
 -- | An arbitrarily Haskell value in a safe Box. The point is that even
 -- unevaluated thunks can safely be moved around inside the Box, and when
@@ -244,7 +245,9 @@ data Closure =
         info         :: StgInfoTable 
         , ptrArgs    :: [Box]
         , dataArgs   :: [Word]
-        , descr      :: String
+        , pkg        :: String
+        , modl       :: String
+        , name       :: String
     } |
     ThunkClosure {
         info         :: StgInfoTable 
@@ -394,12 +397,16 @@ amap' f (Array i0 i _ arr#) = map g [0 .. i - i0]
 
 -- derived from vacuum-1.0.0.2/src/GHC/Vacuum/Internal.hs, which got it from
 -- compiler/ghci/DebuggerUtils.hs
-dataConInfoPtrToNames :: Ptr StgInfoTable -> IO String
+dataConInfoPtrToNames :: Ptr StgInfoTable -> IO (String, String, String)
 dataConInfoPtrToNames ptr = do
     conDescAddress <- getConDescAddress ptr
     wl <- peekArray0 0 conDescAddress
-    return $ fmap (chr . fromIntegral) wl
+    let (pkg, modl, name) = parse wl
+    return (b2s pkg, b2s modl, b2s name)
   where
+    b2s :: [Word8] -> String
+    b2s = fmap (chr . fromIntegral)
+
     getConDescAddress :: Ptr StgInfoTable -> IO (Ptr Word8)
     getConDescAddress ptr'
       | True = do
@@ -430,7 +437,32 @@ dataConInfoPtrToNames ptr = do
 
     stdInfoTableSizeB :: Int
     stdInfoTableSizeB = stdInfoTableSizeW * wORD_SIZE
-    
+
+-- From vacuum-1.0.0.2/src/GHC/Vacuum/Internal.hs
+parse :: [Word8] -> ([Word8], [Word8], [Word8])
+parse input = if not . all (>0) . fmap length $ [pkg,modl,occ]
+                then (error . concat)
+                        ["getConDescAddress:parse:"
+                        ,"(not . all (>0) . fmap le"
+                        ,"ngth $ [pkg,modl,occ]"]
+                else (pkg, modl, occ)
+--   = ASSERT (all (>0) (map length [pkg, modl, occ])) (pkg, modl, occ)   -- XXXXXXXXXXXXXXXX
+  where
+        (pkg, rest1) = break (== fromIntegral (ord ':')) input
+        (modl, occ)
+            = (concat $ intersperse [dot] $ reverse modWords, occWord)
+            where
+            (modWords, occWord) = if (length rest1 < 1) --  XXXXXXXXx YUKX
+                                    then error "getConDescAddress:parse:length rest1 < 1"
+                                    else parseModOcc [] (tail rest1)
+        -- ASSERT (length rest1 > 0) (parseModOcc [] (tail rest1))
+        dot = fromIntegral (ord '.')
+        parseModOcc :: [[Word8]] -> [Word8] -> ([[Word8]], [Word8])
+        parseModOcc acc str
+            = case break (== dot) str of
+                (top, []) -> (acc, top)
+                (top, _:bot) -> parseModOcc (top : acc) bot
+
 
 -- | This function returns parsed heap representation of the argument _at this
 -- moment_, even if it is unevaluated or an indirection or other exotic stuff.
@@ -442,8 +474,8 @@ getClosureData x = do
     itbl <- peek iptr
     case tipe itbl of 
         t | t >= CONSTR && t <= CONSTR_NOCAF_STATIC -> do
-            name <- dataConInfoPtrToNames iptr
-            return $ ConsClosure itbl ptrs (drop (length ptrs + 1) wds) name
+            (pkg, modl, name) <- dataConInfoPtrToNames iptr
+            return $ ConsClosure itbl ptrs (drop (length ptrs + 1) wds) pkg modl name
 
         t | t >= THUNK && t <= THUNK_STATIC -> do
             return $ ThunkClosure itbl ptrs (drop (length ptrs + 2) wds)
