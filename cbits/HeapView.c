@@ -95,9 +95,9 @@ char *gtc_heap_view_closure_type_names[] = {
 void gtc_heap_view_closure_ptrs_in_pap_payload(StgClosure *ptrs[], StgWord *nptrs, StgClosure *fun, StgClosure **payload, StgWord size) {
     StgWord bitmap;
     StgFunInfoTable *fun_info;
-    
+
     fun_info = get_fun_itbl(UNTAG_CLOSURE(fun));
-    ASSERT(fun_info->i.type != PAP);
+    // ASSERT(fun_info->i.type != PAP);
     StgClosure **p = payload;
 
     switch (fun_info->f.fun_type) {
