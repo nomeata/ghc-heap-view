@@ -18,7 +18,7 @@ slurpClosurezh
     W_ info;
     info = %GET_STD_INFO(clos);
 
-    (len) = foreign "C" closureSize(clos "ptr") [];
+    (len) = foreign "C" gtc_heap_view_closureSize(clos "ptr") [];
 
     W_ data_arr_sz;
     data_arr_sz = SIZEOF_StgArrWords  + WDS(len);
@@ -42,7 +42,7 @@ for:
 
     W_ ptrArray;
 
-    ("ptr" ptrArray) = foreign "C" closurePtrs(MyCapability() "ptr", clos "ptr") [];
+    ("ptr" ptrArray) = foreign "C" gtc_heap_view_closurePtrs(MyCapability() "ptr", clos "ptr") [];
 
     RET_NPP(info, data_arr, ptrArray);
 }

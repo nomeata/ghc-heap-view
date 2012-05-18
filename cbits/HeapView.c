@@ -1,12 +1,12 @@
 #include "Rts.h"
 
-StgWord closureSize(StgClosure *closure) {
+StgWord gtc_heap_view_closureSize(StgClosure *closure) {
     ASSERT(LOOKS_LIKE_CLOSURE_PTR(closure));
     return closure_sizeW(closure);
 }
 
 static void
-closure_ptrs_in_large_bitmap(StgClosure *ptrs[], StgWord *nptrs, StgClosure **p, StgLargeBitmap *large_bitmap, nat size )
+gtc_heap_view_closure_ptrs_in_large_bitmap(StgClosure *ptrs[], StgWord *nptrs, StgClosure **p, StgLargeBitmap *large_bitmap, nat size )
 {
     nat i, j, b;
     StgWord bitmap;
@@ -27,7 +27,7 @@ closure_ptrs_in_large_bitmap(StgClosure *ptrs[], StgWord *nptrs, StgClosure **p,
 }
 
 // from rts/Printer.c
-char *closure_type_names[] = {
+char *gtc_heap_view_closure_type_names[] = {
  [INVALID_OBJECT]        = "INVALID_OBJECT",
  [CONSTR]                = "CONSTR",
  [CONSTR_1_0]            = "CONSTR_1_0",
@@ -92,7 +92,7 @@ char *closure_type_names[] = {
 };
 
 
-void closure_ptrs_in_pap_payload(StgClosure *ptrs[], StgWord *nptrs, StgClosure *fun, StgClosure **payload, StgWord size) {
+void gtc_heap_view_closure_ptrs_in_pap_payload(StgClosure *ptrs[], StgWord *nptrs, StgClosure *fun, StgClosure **payload, StgWord size) {
     StgWord bitmap;
     StgFunInfoTable *fun_info;
     
@@ -105,10 +105,10 @@ void closure_ptrs_in_pap_payload(StgClosure *ptrs[], StgWord *nptrs, StgClosure 
         bitmap = BITMAP_BITS(fun_info->f.b.bitmap);
         goto small_bitmap;
     case ARG_GEN_BIG:
-        closure_ptrs_in_large_bitmap(ptrs, nptrs, payload, GET_FUN_LARGE_BITMAP(fun_info), size);
+        gtc_heap_view_closure_ptrs_in_large_bitmap(ptrs, nptrs, payload, GET_FUN_LARGE_BITMAP(fun_info), size);
         break;
     case ARG_BCO:
-        closure_ptrs_in_large_bitmap(ptrs, nptrs, payload, BCO_BITMAP(fun), size);
+        gtc_heap_view_closure_ptrs_in_large_bitmap(ptrs, nptrs, payload, BCO_BITMAP(fun), size);
         break;
     default:
         bitmap = BITMAP_BITS(stg_arg_bitmaps[fun_info->f.fun_type]);
@@ -125,10 +125,10 @@ void closure_ptrs_in_pap_payload(StgClosure *ptrs[], StgWord *nptrs, StgClosure 
     }
 }
 
-StgMutArrPtrs *closurePtrs(Capability *cap, StgClosure *closure) {
+StgMutArrPtrs *gtc_heap_view_closurePtrs(Capability *cap, StgClosure *closure) {
     ASSERT(LOOKS_LIKE_CLOSURE_PTR(closure));
 
-    StgWord size = closureSize(closure);
+    StgWord size = gtc_heap_view_closureSize(closure);
     StgWord nptrs = 0;
     StgWord i;
 
@@ -197,7 +197,7 @@ StgMutArrPtrs *closurePtrs(Capability *cap, StgClosure *closure) {
             
         case AP:
             ptrs[nptrs++] = ((StgAP *)closure)->fun;
-            closure_ptrs_in_pap_payload(ptrs, &nptrs,
+            gtc_heap_view_closure_ptrs_in_pap_payload(ptrs, &nptrs,
                 ((StgAP *)closure)->fun,
                 ((StgAP *)closure)->payload,
                 ((StgAP *)closure)->n_args);
@@ -205,7 +205,7 @@ StgMutArrPtrs *closurePtrs(Capability *cap, StgClosure *closure) {
             
         case PAP:
             ptrs[nptrs++] = ((StgPAP *)closure)->fun;
-            closure_ptrs_in_pap_payload(ptrs, &nptrs,
+            gtc_heap_view_closure_ptrs_in_pap_payload(ptrs, &nptrs,
                 ((StgPAP *)closure)->fun,
                 ((StgPAP *)closure)->payload,
                 ((StgPAP *)closure)->n_args);
@@ -249,7 +249,7 @@ StgMutArrPtrs *closurePtrs(Capability *cap, StgClosure *closure) {
             break;
 
         default:
-            fprintf(stderr,"closurePtrs: Cannot handle type %s yet\n", closure_type_names[info->type]);
+            fprintf(stderr,"closurePtrs: Cannot handle type %s yet\n", gtc_heap_view_closure_type_names[info->type]);
             break;
     }
 
