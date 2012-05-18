@@ -259,6 +259,10 @@ data Closure =
         info         :: StgInfoTable 
         , indirectee   :: Box
     } |
+    BlackholeClosure {
+        info         :: StgInfoTable 
+        , indirectee   :: Box
+    } |
     APClosure {
         info         :: StgInfoTable 
         , arity      :: HalfWord
@@ -329,6 +333,7 @@ allPtrs (ConsClosure {..}) = ptrArgs
 allPtrs (ThunkClosure {..}) = ptrArgs
 allPtrs (SelectorClosure {..}) = [selectee]
 allPtrs (IndClosure {..}) = [indirectee]
+allPtrs (BlackholeClosure {..}) = [indirectee]
 allPtrs (APClosure {..}) = fun:payload
 allPtrs (PAPClosure {..}) = fun:payload
 allPtrs (BCOClosure {..}) = [instrs,literals,bcoptrs]
@@ -466,7 +471,7 @@ getClosureData x = do
         IND_STATIC ->
             return $ IndClosure itbl (head ptrs)
         BLACKHOLE ->
-            return $ IndClosure itbl (head ptrs)
+            return $ BlackholeClosure itbl (head ptrs)
 
         BCO ->
             return $ BCOClosure itbl (ptrs !! 0) (ptrs !! 1) (ptrs !! 2)
