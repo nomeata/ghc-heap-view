@@ -441,10 +441,11 @@ dataConInfoPtrToNames ptr = do
 -- From vacuum-1.0.0.2/src/GHC/Vacuum/Internal.hs
 parse :: [Word8] -> ([Word8], [Word8], [Word8])
 parse input = if not . all (>0) . fmap length $ [pkg,modl,occ]
-                then (error . concat)
-                        ["getConDescAddress:parse:"
-                        ,"(not . all (>0) . fmap le"
-                        ,"ngth $ [pkg,modl,occ]"]
+                --then (error . concat)
+                --        ["getConDescAddress:parse:"
+                --        ,"(not . all (>0) . fmap le"
+                --        ,"ngth $ [pkg,modl,occ]"]
+                then ([], [], input) -- Not in the pkg.modl.occ format, for example END_TSO_QUEUE
                 else (pkg, modl, occ)
 --   = ASSERT (all (>0) (map length [pkg, modl, occ])) (pkg, modl, occ)   -- XXXXXXXXXXXXXXXX
   where
@@ -453,7 +454,8 @@ parse input = if not . all (>0) . fmap length $ [pkg,modl,occ]
             = (concat $ intersperse [dot] $ reverse modWords, occWord)
             where
             (modWords, occWord) = if (length rest1 < 1) --  XXXXXXXXx YUKX
-                                    then error "getConDescAddress:parse:length rest1 < 1"
+                                    --then error "getConDescAddress:parse:length rest1 < 1"
+                                    then parseModOcc [] []
                                     else parseModOcc [] (tail rest1)
         -- ASSERT (length rest1 > 0) (parseModOcc [] (tail rest1))
         dot = fromIntegral (ord '.')
