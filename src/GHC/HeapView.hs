@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-|
 Module      :  GHC.HeapView
 Copyright   :  (c) 2012 Joachim Breitner
@@ -37,13 +38,19 @@ import Numeric          ( showHex )
 import Data.Char
 import Data.List        ( intersperse )
 
+#include "ghcautoconf.h"
+
 -- | An arbitrarily Haskell value in a safe Box. The point is that even
 -- unevaluated thunks can safely be moved around inside the Box, and when
 -- required, e.g. in 'getBoxedClosureData', the function knows how far it has
 -- to evalue the argument.
 data Box = Box Any
 
+#if SIZEOF_VOID_P == 8
 type HalfWord = Word32
+#else
+type HalfWord = Word16
+#endif
 
 instance Show Box where
 -- From libraries/base/GHC/Ptr.lhs
