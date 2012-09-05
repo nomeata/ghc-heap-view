@@ -334,6 +334,9 @@ data Closure =
         info         :: StgInfoTable 
         , hvalues    :: [Box]
         , rawWords   :: [Word]
+    } |
+    UnsupportedClosure {
+        info         :: StgInfoTable 
     }
  deriving (Show)
 
@@ -354,6 +357,7 @@ allPtrs (MVarClosure {..}) = [queueHead,queueTail,value]
 allPtrs (FunClosure {..}) = ptrArgs
 allPtrs (BlockingQueueClosure {..}) = [link, blackHole, owner, queue]
 allPtrs (OtherClosure {..}) = hvalues
+allPtrs (UnsupportedClosure {..}) = []
 
 
 
@@ -533,12 +537,14 @@ getClosureData x = do
             return $ MVarClosure itbl (ptrs !! 0) (ptrs !! 1) (ptrs !! 2)
 
         BLOCKING_QUEUE ->
-          return $ OtherClosure itbl ptrs wds
+            return $ OtherClosure itbl ptrs wds
         --    return $ BlockingQueueClosure itbl
         --        (ptrs !! 0) (ptrs !! 1) (ptrs !! 2) (ptrs !! 3)
 
         --  return $ OtherClosure itbl ptrs wds
-        closure -> error $ "getClosureData: Cannot handle closure type " ++ show closure
+        --
+        _ ->
+            return $ UnsupportedClosure itbl
 
 -- | Like 'getClosureData', but taking a 'Box', so it is easier to work with.
 getBoxedClosureData :: Box -> IO Closure

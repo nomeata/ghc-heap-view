@@ -249,7 +249,7 @@ StgMutArrPtrs *gtc_heap_view_closurePtrs(Capability *cap, StgClosure *closure) {
             break;
 
         default:
-            fprintf(stderr,"closurePtrs: Cannot handle type %s yet\n", gtc_heap_view_closure_type_names[info->type]);
+            //fprintf(stderr,"closurePtrs: Cannot handle type %s yet\n", gtc_heap_view_closure_type_names[info->type]);
             break;
     }
 
