@@ -16,7 +16,7 @@ Author:              Joachim Breitner, Dennis Felsing
 Maintainer:          Joachim Breitner <mail@joachim-breitner.de>
 Copyright:           2012 Joachim Breitner
 Category:            Debug, GHC
-Build-type:          Simple
+Build-type:          Custom
 Cabal-version:       >=1.14
 Extra-source-files:  Demo.hs
 
