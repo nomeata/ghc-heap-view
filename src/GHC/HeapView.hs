@@ -287,6 +287,11 @@ data Closure =
         , fun        :: Box
         , payload    :: [Box]
     } |
+    APStackClosure {
+        info         :: StgInfoTable 
+        , fun        :: Box
+        , payload    :: [Box]
+    } |
     BCOClosure {
         info         :: StgInfoTable 
         , instrs     :: Box
@@ -349,6 +354,7 @@ allPtrs (IndClosure {..}) = [indirectee]
 allPtrs (BlackholeClosure {..}) = [indirectee]
 allPtrs (APClosure {..}) = fun:payload
 allPtrs (PAPClosure {..}) = fun:payload
+allPtrs (APStackClosure {..}) = fun:payload
 allPtrs (BCOClosure {..}) = [instrs,literals,bcoptrs]
 allPtrs (ArrWordsClosure {..}) = []
 allPtrs (MutArrClosure {..}) = mccPayload
@@ -507,6 +513,9 @@ getClosureData x = do
                 (fromIntegral $ wds !! 2)
                 (fromIntegral $ shiftR (wds !! 2) (wORD_SIZE_IN_BITS `div` 2))
                 (head ptrs) (tail ptrs)
+
+        AP_STACK ->
+            return $ APStackClosure itbl (head ptrs) (tail ptrs)
 
         THUNK_SELECTOR ->
             return $ SelectorClosure itbl (head ptrs)
