@@ -47,3 +47,9 @@ for:
     RET_NPP(info, data_arr, ptrArray);
 }
 
+untag
+{
+    W_ clos;
+    clos = UNTAG(R1);
+    RET_N(clos);
+}

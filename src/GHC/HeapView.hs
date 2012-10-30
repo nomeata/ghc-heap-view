@@ -370,12 +370,15 @@ allPtrs (UnsupportedClosure {..}) = []
 #ifdef PRIM_SUPPORTS_ANY
 foreign import prim "aToWordzh" aToWord# :: Any -> Word#
 foreign import prim "slurpClosurezh" slurpClosure# :: Any -> (# Addr#, ByteArray#, Array# b #)
+foreign import prim "untag" untag# :: Any -> Any
 #else
 -- Workd-around code until http://hackage.haskell.org/trac/ghc/ticket/5931 was
 -- accepted
 
 -- foreign import prim "aToWordzh" aToWord'# :: Addr# -> Word#
 foreign import prim "slurpClosurezh" slurpClosure'# :: Word#  -> (# Addr#, ByteArray#, Array# b #)
+
+foreign import prim "untag" untag'# :: Word# -> Word#
 
 -- This is a datatype that has the same layout as Ptr, so that by
 -- unsafeCoerce'ing, we obtain the Addr of the wrapped value
@@ -386,6 +389,9 @@ aToWord# a = case Ptr' a of mb@(Ptr' _) -> case unsafeCoerce# mb :: Word of W# a
 
 slurpClosure# :: Any -> (# Addr#, ByteArray#, Array# b #)
 slurpClosure# a = slurpClosure'# (aToWord# a)
+
+untag# :: Any -> Any
+untag# a = unsafeCoerce# (untag'# (unsafeCoerce# a))
 #endif
 
 --pClosure x = do
