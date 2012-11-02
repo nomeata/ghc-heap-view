@@ -66,9 +66,9 @@ instance Show Box where
           '0':'x':(replicate (2*wORD_SIZE - length ls) '0') ++ ls
 
 instance Eq Box where
-  Box a == Box b = case reallyUnsafePtrEquality# a b of
-    1# -> True
-    _  -> False
+  Box a == Box b = case reallyUnsafePtrEqualityUpToTag# a b of
+    0# -> False
+    _  -> True
 
 {-|
   This takes an arbitrary value and puts it into a box. Note that calls like
@@ -370,7 +370,7 @@ allPtrs (UnsupportedClosure {..}) = []
 #ifdef PRIM_SUPPORTS_ANY
 foreign import prim "aToWordzh" aToWord# :: Any -> Word#
 foreign import prim "slurpClosurezh" slurpClosure# :: Any -> (# Addr#, ByteArray#, Array# b #)
-foreign import prim "untag" untag# :: Any -> Any
+foreign import prim "reallyUnsafePtrEqualityUpToTag" reallyUnsafePtrEqualityUpToTag# :: Any -> Any -> Int#
 #else
 -- Workd-around code until http://hackage.haskell.org/trac/ghc/ticket/5931 was
 -- accepted
@@ -378,7 +378,7 @@ foreign import prim "untag" untag# :: Any -> Any
 -- foreign import prim "aToWordzh" aToWord'# :: Addr# -> Word#
 foreign import prim "slurpClosurezh" slurpClosure'# :: Word#  -> (# Addr#, ByteArray#, Array# b #)
 
-foreign import prim "untag" untag'# :: Word# -> Word#
+foreign import prim "reallyUnsafePtrEqualityUpToTag" reallyUnsafePtrEqualityUpToTag'# :: Word# -> Word# -> Int#
 
 -- This is a datatype that has the same layout as Ptr, so that by
 -- unsafeCoerce'ing, we obtain the Addr of the wrapped value
@@ -390,8 +390,8 @@ aToWord# a = case Ptr' a of mb@(Ptr' _) -> case unsafeCoerce# mb :: Word of W# a
 slurpClosure# :: Any -> (# Addr#, ByteArray#, Array# b #)
 slurpClosure# a = slurpClosure'# (aToWord# a)
 
-untag# :: Any -> Any
-untag# a = unsafeCoerce# (untag'# (unsafeCoerce# a))
+reallyUnsafePtrEqualityUpToTag# :: Any -> Any -> Int#
+reallyUnsafePtrEqualityUpToTag# a b = reallyUnsafePtrEqualityUpToTag'# (unsafeCoerce# a) (unsafeCoerce# b)
 #endif
 
 --pClosure x = do

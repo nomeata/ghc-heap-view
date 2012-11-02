@@ -47,9 +47,11 @@ for:
     RET_NPP(info, data_arr, ptrArray);
 }
 
-untag
+reallyUnsafePtrEqualityUpToTag
 {
-    W_ clos;
-    clos = UNTAG(R1);
-    RET_N(clos);
+    W_ clos1;
+    W_ clos2;
+    clos1 = UNTAG(R1);
+    clos2 = UNTAG(R2);
+    RET_N(clos1 == clos2);
 }
