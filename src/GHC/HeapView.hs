@@ -391,7 +391,7 @@ slurpClosure# :: Any -> (# Addr#, ByteArray#, Array# b #)
 slurpClosure# a = slurpClosure'# (aToWord# a)
 
 reallyUnsafePtrEqualityUpToTag# :: Any -> Any -> Int#
-reallyUnsafePtrEqualityUpToTag# a b = reallyUnsafePtrEqualityUpToTag'# (unsafeCoerce# a) (unsafeCoerce# b)
+reallyUnsafePtrEqualityUpToTag# a b = reallyUnsafePtrEqualityUpToTag'# (aToWord# a) (aToWord# b)
 #endif
 
 --pClosure x = do
