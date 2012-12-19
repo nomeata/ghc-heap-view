@@ -1,4 +1,4 @@
-{-# LANGUAGE CPP #-}
+{-# LANGUAGE MagicHash, UnboxedTuples, CPP, ForeignFunctionInterface, GHCForeignImportPrim, UnliftedFFITypes, BangPatterns, RecordWildCards, DeriveFunctor, DeriveFoldable, DeriveTraversable #-}
 {-|
 Module      :  GHC.HeapView
 Copyright   :  (c) 2012 Joachim Breitner
@@ -9,11 +9,11 @@ With this module, you can investigate the heap representation of Haskell
 values, i.e. to investigate sharing and lazy evaluation.
 -}
 
-{-# LANGUAGE MagicHash, UnboxedTuples, CPP, ForeignFunctionInterface, GHCForeignImportPrim, UnliftedFFITypes, BangPatterns, RecordWildCards #-}
 
 module GHC.HeapView (
     -- * Heap data types
-    Closure(..),
+    GenClosure(..),
+    Closure,
     allPtrs,
     ClosureType(..),
     StgInfoTable(..),
@@ -25,18 +25,36 @@ module GHC.HeapView (
     -- * Boxes
     Box(..),
     asBox,
+    -- * Weak boxes
+    WeakBox,
+    weakBox,
+    isAlive,
+    derefWeakBox,
+    WeakClosure,
+    weakenClosure,
     )
     where
 
-import GHC.Exts
-import GHC.Arr (Array(..))
+import GHC.Exts         ( Any,
+                          Ptr(..), Addr#, Int(..), Word(..), Word#, Int#,
+                          ByteArray#, Array#, sizeofByteArray#, sizeofArray#, indexArray#, indexWordArray#,
+                          unsafeCoerce# )
 
-import GHC.Constants ( wORD_SIZE, tAG_MASK, wORD_SIZE_IN_BITS )
+import GHC.Arr          (Array(..))
 
-import Foreign
+import GHC.Constants    ( wORD_SIZE, tAG_MASK, wORD_SIZE_IN_BITS )
+
+import System.IO.Unsafe ( unsafePerformIO )
+
+import Foreign          hiding ( unsafePerformIO )
 import Numeric          ( showHex )
 import Data.Char
 import Data.List        ( intersperse )
+import Data.Maybe       ( isJust )
+import System.Mem.Weak
+import Data.Foldable    ( Foldable )
+import Data.Traversable ( Traversable )
+import qualified Data.Traversable as T
 
 #include "ghcautoconf.h"
 
@@ -246,11 +264,15 @@ data ClosureType =
 {-| This is the main data type of this module, representing a Haskell value on
   the heap. This reflects
   <http://hackage.haskell.org/trac/ghc/browser/includes/rts/storage/Closures.h>
+
+  The data type is parametrized by the type to store references in, which
+  should be either 'Box' or 'WeakBox', with appropriate type synonyms 'Closure'
+  and 'WeakClosure'.
  -}
-data Closure =
+data GenClosure b =
     ConsClosure {
         info         :: StgInfoTable 
-        , ptrArgs    :: [Box]
+        , ptrArgs    :: [b]
         , dataArgs   :: [Word]
         , pkg        :: String
         , modl       :: String
@@ -258,45 +280,45 @@ data Closure =
     } |
     ThunkClosure {
         info         :: StgInfoTable 
-        , ptrArgs    :: [Box]
+        , ptrArgs    :: [b]
         , dataArgs   :: [Word]
     } |
     SelectorClosure {
         info         :: StgInfoTable 
-        , selectee   :: Box
+        , selectee   :: b
     } |
     IndClosure {
         info         :: StgInfoTable 
-        , indirectee   :: Box
+        , indirectee   :: b
     } |
     BlackholeClosure {
         info         :: StgInfoTable 
-        , indirectee   :: Box
+        , indirectee   :: b
     } |
     APClosure {
         info         :: StgInfoTable 
         , arity      :: HalfWord
         , n_args     :: HalfWord
-        , fun        :: Box
-        , payload    :: [Box]
+        , fun        :: b
+        , payload    :: [b]
     } |
     PAPClosure {
         info         :: StgInfoTable 
         , arity      :: HalfWord
         , n_args     :: HalfWord
-        , fun        :: Box
-        , payload    :: [Box]
+        , fun        :: b
+        , payload    :: [b]
     } |
     APStackClosure {
         info         :: StgInfoTable 
-        , fun        :: Box
-        , payload    :: [Box]
+        , fun        :: b
+        , payload    :: [b]
     } |
     BCOClosure {
         info         :: StgInfoTable 
-        , instrs     :: Box
-        , literals   :: Box
-        , bcoptrs    :: Box
+        , instrs     :: b
+        , literals   :: b
+        , bcoptrs    :: b
         , arity      :: HalfWord
         , size       :: HalfWord
         , bitmap     :: Word
@@ -310,43 +332,46 @@ data Closure =
         info         :: StgInfoTable 
         , mccPtrs    :: Word
         , mccSize    :: Word
-        , mccPayload :: [Box]
+        , mccPayload :: [b]
         -- Card table ignored
     } |
     MutVarClosure {
         info         :: StgInfoTable 
-        , var        :: Box
+        , var        :: b
     } |
     MVarClosure {
         info         :: StgInfoTable 
-        , queueHead  :: Box
-        , queueTail  :: Box
-        , value      :: Box
+        , queueHead  :: b
+        , queueTail  :: b
+        , value      :: b
     } |
     FunClosure {
         info         :: StgInfoTable 
-        , ptrArgs    :: [Box]
+        , ptrArgs    :: [b]
         , dataArgs   :: [Word]
     } |
     BlockingQueueClosure {
         info         :: StgInfoTable 
-        , link       :: Box
-        , blackHole  :: Box
-        , owner      :: Box
-        , queue      :: Box
+        , link       :: b
+        , blackHole  :: b
+        , owner      :: b
+        , queue      :: b
     } |
     OtherClosure {
         info         :: StgInfoTable 
-        , hvalues    :: [Box]
+        , hvalues    :: [b]
         , rawWords   :: [Word]
     } |
     UnsupportedClosure {
         info         :: StgInfoTable 
     }
- deriving (Show)
+ deriving (Show, Functor, Foldable, Traversable)
+
+
+type Closure = GenClosure Box
 
 -- | For generic code, this function returns all referenced closures. 
-allPtrs :: Closure -> [Box]
+allPtrs :: GenClosure b -> [b]
 allPtrs (ConsClosure {..}) = ptrArgs
 allPtrs (ThunkClosure {..}) = ptrArgs
 allPtrs (SelectorClosure {..}) = [selectee]
@@ -565,3 +590,39 @@ getClosureData x = do
 getBoxedClosureData :: Box -> IO Closure
 getBoxedClosureData (Box a) = getClosureData a
 
+
+-- | An a variant of 'Box' that does not keep the value alive.
+-- 
+-- Like 'Box', its 'Show' instance is highly unsafe.
+newtype WeakBox = WeakBox (Weak Box)
+
+
+type WeakClosure = GenClosure WeakBox
+
+instance Show WeakBox where
+    showsPrec p (WeakBox w) rs = case unsafePerformIO (deRefWeak w) of
+        Nothing -> let txt = "(freed)" in
+                   replicate (2*wORD_SIZE - length txt) ' ' ++ txt ++ rs
+        Just b -> showsPrec p b rs
+
+{-|
+  Turns a 'Box' into a 'WeakBox', allowing the referenced value to be garbage
+  collected.
+-}
+weakBox :: Box -> IO WeakBox
+weakBox b@(Box a) = WeakBox `fmap` mkWeak a b Nothing
+
+{-|
+  Checks whether the value referenced by a weak box is still alive
+-}
+isAlive :: WeakBox -> IO Bool
+isAlive (WeakBox w) = isJust `fmap` deRefWeak w
+
+{-|
+  Dereferences the weak box
+-}
+derefWeakBox :: WeakBox -> IO (Maybe Box)
+derefWeakBox (WeakBox w) = deRefWeak w
+
+weakenClosure :: Closure -> IO WeakClosure
+weakenClosure = T.mapM weakBox
