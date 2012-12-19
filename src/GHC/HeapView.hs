@@ -18,6 +18,9 @@ module GHC.HeapView (
     ClosureType(..),
     StgInfoTable(..),
     HalfWord,
+    -- * Pretty printing
+    prettyPrintClosure,
+    prettyDeeplyPrintClosure,
     -- * Reading from the heap
     getClosureData,
     getBoxedClosureData,
@@ -49,7 +52,7 @@ import System.IO.Unsafe ( unsafePerformIO )
 import Foreign          hiding ( unsafePerformIO )
 import Numeric          ( showHex )
 import Data.Char
-import Data.List        ( intersperse )
+import Data.List        ( intersperse, intercalate )
 import Data.Maybe       ( isJust )
 import System.Mem.Weak
 import Data.Foldable    ( Foldable )
@@ -390,6 +393,71 @@ allPtrs (BlockingQueueClosure {..}) = [link, blackHole, owner, queue]
 allPtrs (OtherClosure {..}) = hvalues
 allPtrs (UnsupportedClosure {..}) = []
 
+
+-- | A pretty-printer that tries to generate valid Haskell for evalutated data.
+-- It assumes that for the included boxes, you already replaced them by Strings
+-- using 'Data.Foldable.map' or, if you need to do IO, 'Data.Foldable.mapM'.
+--
+-- The boolean parameter indicates whether braces should be added when the
+-- result is an application, e.g. a non-nullary constructor.
+prettyPrintClosure :: Bool -> GenClosure String -> String
+prettyPrintClosure ab c = case c of
+    ConsClosure {..} -> addParens $
+        name : ptrArgs ++ map show dataArgs
+    ThunkClosure {..} -> addParens $
+        "_thunk" : ptrArgs ++ map show dataArgs
+    SelectorClosure {..} -> addParens
+        ["_sel", selectee]
+    IndClosure {..} -> addParens
+        ["_ind", indirectee]
+    BlackholeClosure {..} -> addParens
+        ["_bh", indirectee]
+    APClosure {..} -> addParens $
+        fun : payload
+    PAPClosure {..} -> addParens $
+        fun : payload
+    APStackClosure {..} -> addParens $
+        fun : payload
+    BCOClosure {..} -> addParens
+        ["_bco"]
+    ArrWordsClosure {..} -> addParens
+        ["toArray", intercalate "," (map show arrWords) ]
+    MutArrClosure {..} -> addParens
+        ["toMutArray", intercalate "," mccPayload]
+    MutVarClosure {..} -> addParens $
+        ["_mutVar", var]
+    MVarClosure {..} -> addParens $
+        ["MVar", value]
+    FunClosure {..} -> 
+        "_fun" ++ bracketize (ptrArgs ++ map show dataArgs)
+    BlockingQueueClosure {..} -> 
+        "_blockingQueue"
+    OtherClosure {..} ->
+        "_other"
+    UnsupportedClosure {..} ->
+        "_unsupported"
+  where
+    addParens [] = "()" -- not used
+    addParens [a] = a 
+    addParens xs = if ab
+                   then "(" ++ intercalate " " xs ++ ")"
+                   else intercalate " " xs 
+    bracketize [] = ""
+    bracketize xs = "[" ++ intercalate "," xs ++ "]"
+    
+-- | Using 'prettyPrintClosure', prints a closure recursively. Will diverge for
+-- cyclic or infinite input.
+-- 
+-- Example output for @[Just 4, Nothing]@:
+--
+-- > : (Just (I# 4)) (: Nothing [])
+prettyDeeplyPrintClosure :: Closure -> IO String
+prettyDeeplyPrintClosure c = prettyPrintClosure False `fmap` T.mapM printBox c
+  where
+    printBox b = do
+        c' <- getBoxedClosureData b
+        c'' <- T.mapM printBox c'
+        return $ prettyPrintClosure True c''
 
 
 #ifdef PRIM_SUPPORTS_ANY
