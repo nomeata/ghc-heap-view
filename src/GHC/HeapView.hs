@@ -23,7 +23,7 @@ module GHC.HeapView (
     getBoxedClosureData,
     getClosureRaw,
     -- * Pretty printing
-    ppPrintClosure,
+    ppClosure,
     -- * Heap maps
     -- $heapmap
     HeapTree(..),
@@ -626,8 +626,8 @@ isNil _ = False
 -- using 'Data.Foldable.map' or, if you need to do IO, 'Data.Foldable.mapM'.
 --
 -- The parameter gives the precedendence, to avoid avoidable parenthesises.
-ppPrintClosure :: (Int -> b -> String) -> Int -> GenClosure b -> String
-ppPrintClosure showBox prec c = case c of
+ppClosure :: (Int -> b -> String) -> Int -> GenClosure b -> String
+ppClosure showBox prec c = case c of
     _ | Just ch <- isChar c -> app $
         ["C#", show ch]
     _ | Just (h,t) <- isCons c -> addBraces (5 <= prec) $
@@ -714,7 +714,7 @@ ppHeapTree = go 0
     go prec t@(HeapTree _ c')
         | Just s <- isHeapTreeString t = show s
         | Just l <- isHeapTreeList t   = "[" ++ intercalate "," (map ppHeapTree l) ++ "]"
-        | otherwise                    =  ppPrintClosure go prec c'
+        | otherwise                    =  ppClosure go prec c'
 
 isHeapTreeList :: HeapTree -> Maybe ([HeapTree])
 isHeapTreeList tree = do
@@ -807,7 +807,7 @@ ppHeapGraph (HeapGraph m) = letWrapper ++ ppRef 0 (Just heapGraphRoot)
     ppEntry prec e@(HeapGraphEntry _ c)
         | Just s <- isString e = show s
         | Just l <- isList e = "[" ++ intercalate "," (map (ppRef 0) l) ++ "]"
-        | otherwise = ppPrintClosure ppRef prec c
+        | otherwise = ppClosure ppRef prec c
 
     ppRef _ Nothing = "..."
     ppRef prec (Just i) | i `elem` bindings = "x" ++ show i
