@@ -712,7 +712,13 @@ isHeapTreeList tree = do
         return $ (:) h t'
 
 isHeapTreeString :: HeapTree -> Maybe String
-isHeapTreeString = mapM (isChar <=< heapTreeClosure) <=< isHeapTreeList
+isHeapTreeString t = do
+    list <- isHeapTreeList t
+    -- We do not want to print empty lists as "" as we do not know that they
+    -- are really strings.
+    if (null list)
+        then Nothing
+        else mapM (isChar <=< heapTreeClosure) list
 
 -- | For heap graphs, i.e. data structures that also represent sharing and
 -- cyclic structures, these are the entries. If the referenced value is
