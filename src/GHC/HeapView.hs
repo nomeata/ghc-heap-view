@@ -29,6 +29,11 @@ module GHC.HeapView (
     HeapTree(..),
     buildHeapTree,
     ppHeapTree,
+    HeapGraphEntry(..),
+    HeapGraphIndex,
+    HeapGraph(..),
+    lookupHeapGraph,
+    buildHeapGraph,
     -- * Boxes
     Box(..),
     asBox,
@@ -59,10 +64,14 @@ import Data.Char
 import Data.List        ( intersperse, intercalate )
 import Data.Maybe       ( isJust )
 import System.Mem.Weak
+import Data.Functor
 import Data.Foldable    ( Foldable )
 import Data.Traversable ( Traversable )
 import qualified Data.Traversable as T
+import qualified Data.IntMap as M
 import Control.Monad
+import Control.Monad.Trans.State
+import Control.Monad.Trans.Class
 
 #include "ghcautoconf.h"
 
@@ -147,7 +156,7 @@ instance Storable StgInfoTable where
       = error "Storable StgInfoTable is read-only"
 
    peek a0
-      = runState (castPtr a0)
+      = flip (evalStateT) (castPtr a0)
       $ do
            ptrs'   <- load
            nptrs'  <- load
@@ -168,33 +177,16 @@ load :: Storable a => PtrIO a
 load = do addr <- advance
           lift (peek addr)
 
-type PtrIO = State (Ptr Word8) IO
+type PtrIO = StateT (Ptr Word8) IO
 
 advance :: Storable a => PtrIO (Ptr a)
-advance = State adv where
+advance = StateT adv where
     adv addr = case castPtr addr of { addrCast -> return
-        (addr `plusPtr` sizeOfPointee addrCast, addrCast) }
+        (addrCast, addr `plusPtr` sizeOfPointee addrCast) }
 
 sizeOfPointee :: (Storable a) => Ptr a -> Int
 sizeOfPointee addr = sizeOf (typeHack addr)
     where typeHack = undefined :: Ptr a -> a
-
-{-
-   Embedded StateT, also from ByteCodeItbls
- -}
-
-newtype State s m a = State (s -> m (s, a))
-
-instance Monad m => Monad (State s m) where
-  return a      = State (\s -> return (s, a))
-  State m >>= k = State (\s -> m s >>= \(s', a) -> case k a of State n -> n s')
-  fail str      = State (\_ -> fail str)
-
-lift :: Monad m => m a -> State s m a
-lift m = State (\s -> m >>= \a -> return (s, a))
-
-runState :: (Monad m) => s -> State s m a -> m a
-runState s (State m) = m s >>= return . snd
 
 {-
    Data Type representing Closures
@@ -716,6 +708,52 @@ isHeapTreeList tree = do
 isHeapTreeString :: HeapTree -> Maybe String
 isHeapTreeString = mapM (isChar <=< heapTreeClosure) <=< isHeapTreeList
 
+-- | For heap graphs, i.e. data structures that also represent sharing and
+-- cyclic structures, these are the entries. If the referenced value is
+-- @Nothing@, then we do not have that value in the map, most likely due to
+-- exceeding the recursion bound passed to 'buildHeapGraph'.
+data HeapGraphEntry = HeapGraphEntry WeakBox (GenClosure (Maybe HeapGraphIndex))
+    deriving (Show)
+type HeapGraphIndex = Int
+
+-- | The whole graph. The suggested interface is to only use 'lookupHeapGraph',
+-- as the internal representation may change. Nevertheless, we export it here:
+-- Sometimes the user knows better what he needs than we do.
+newtype HeapGraph = HeapGraph (M.IntMap HeapGraphEntry)
+    deriving (Show)
+
+lookupHeapGraph :: HeapGraphIndex -> HeapGraph -> Maybe HeapGraphEntry
+lookupHeapGraph i (HeapGraph m) = M.lookup i m
+
+-- | Creates a 'HeapGraph' for the value in the box, but not recursing further
+-- than the given limit.
+buildHeapGraph :: Int -> Box -> IO HeapGraph
+buildHeapGraph limit initialBox = do
+    let initialState = (M.empty, [], [0..])
+    (\(m,_,_) -> HeapGraph m) <$> execStateT (add limit initialBox) initialState 
+  where
+    add 0 _ = return Nothing
+    add n b = do
+        -- If the box is in the map, return the index
+        (_,existing,_) <- get
+        case lookup b existing of
+            Just i -> return $ Just i
+            Nothing -> do
+                -- Otherwise, allocate a new index
+                i <- nextI
+                -- And register it
+                modify (\(m,a,is) -> (m,(b,i):a,is))
+                c <- lift $ getBoxedClosureData b
+                -- Find indicies for all boxes contained in the map
+                c' <- T.mapM (add (n-1)) c
+                w <- lift $ weakBox b
+                -- Add add the resulting closure to the map
+                modify (\(m,a,is) -> (M.insert i (HeapGraphEntry w c') m,a,is))
+                return $ Just i
+    nextI = do
+        (_,_,i:_) <- get
+        modify (\(m,a,is) -> (m,a,tail is))
+        return i
 
 -- | An a variant of 'Box' that does not keep the value alive.
 -- 
