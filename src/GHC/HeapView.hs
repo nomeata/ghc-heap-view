@@ -688,9 +688,10 @@ buildHeapTree n b = do
 
 -- | Pretty-Printing a heap Tree
 -- 
--- Example output for @[Just 4, Nothing]@:
+-- Example output for @[Just 4, Nothing, *something*]@, where *something* is an
+-- unevaluated expression depending on the command line argument.
 --
--- > : (Just (I# 4)) (: Nothing [])
+-- >[Just (I# 4),Nothing,Just (_thunk ["arg1","arg2"])]
 ppHeapTree :: HeapTree -> String
 ppHeapTree = go 0
   where
