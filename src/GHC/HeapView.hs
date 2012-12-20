@@ -788,12 +788,16 @@ buildHeapGraph limit initialBox = do
 -- >    x6 = C# 'H' : C# 'o' : x6
 -- >in (x1,x1,x6)
 ppHeapGraph :: HeapGraph -> String
-ppHeapGraph (HeapGraph m) =
-    "let " ++ intercalate "\n    " (map ppBinding bindings) ++ "\n" ++
-    "in " ++ ppRef 0 (Just heapGraphRoot)
+ppHeapGraph (HeapGraph m) = letWrapper ++ ppRef 0 (Just heapGraphRoot)
   where
     -- All variables occuring more than once
     bindings = boundMultipleTimes (HeapGraph m) [heapGraphRoot] 
+
+    letWrapper =
+        if null bindings
+        then ""
+        else "let " ++ intercalate "\n    " (map ppBinding bindings) ++ "\nlet "
+
     ppBinding i = "x" ++ show i ++ " = " ++ ppEntry 0 (iToE i)
 
     ppEntry prec e@(HeapGraphEntry _ c)
@@ -807,8 +811,6 @@ ppHeapGraph (HeapGraph m) =
     iToE i = fromJust (M.lookup i m)
 
     iToUnboundE i = if i `elem` bindings then Nothing else M.lookup i m
-                  
-        
 
     isList :: HeapGraphEntry -> Maybe ([Maybe HeapGraphIndex])
     isList (HeapGraphEntry _ c) = 
