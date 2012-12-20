@@ -72,6 +72,9 @@ import qualified Data.IntMap as M
 import Control.Monad
 import Control.Monad.Trans.State
 import Control.Monad.Trans.Class
+import Control.Monad.IO.Class
+import Control.Monad.Trans.Writer.Strict
+import Control.Arrow    ( first, second )
 
 #include "ghcautoconf.h"
 
@@ -729,30 +732,30 @@ lookupHeapGraph i (HeapGraph m) = M.lookup i m
 -- than the given limit.
 buildHeapGraph :: Int -> Box -> IO HeapGraph
 buildHeapGraph limit initialBox = do
-    let initialState = (M.empty, [], [0..])
-    (\(m,_,_) -> HeapGraph m) <$> execStateT (add limit initialBox) initialState 
+    let initialState = ([], [0..])
+    HeapGraph <$> execWriterT (runStateT (add limit initialBox) initialState)
   where
     add 0 _ = return Nothing
     add n b = do
         -- If the box is in the map, return the index
-        (_,existing,_) <- get
+        (existing,_) <- get
         case lookup b existing of
             Just i -> return $ Just i
             Nothing -> do
                 -- Otherwise, allocate a new index
                 i <- nextI
                 -- And register it
-                modify (\(m,a,is) -> (m,(b,i):a,is))
-                c <- lift $ getBoxedClosureData b
+                modify (first ((b,i):))
+                c <- liftIO $ getBoxedClosureData b
                 -- Find indicies for all boxes contained in the map
                 c' <- T.mapM (add (n-1)) c
-                w <- lift $ weakBox b
+                w <- liftIO $ weakBox b
                 -- Add add the resulting closure to the map
-                modify (\(m,a,is) -> (M.insert i (HeapGraphEntry w c') m,a,is))
+                lift $ tell (M.singleton i (HeapGraphEntry w c'))
                 return $ Just i
     nextI = do
-        (_,_,i:_) <- get
-        modify (\(m,a,is) -> (m,a,tail is))
+        i <- gets (head . snd)
+        modify (second tail)
         return i
 
 -- | An a variant of 'Box' that does not keep the value alive.
