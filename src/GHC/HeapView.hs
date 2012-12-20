@@ -782,22 +782,54 @@ buildHeapGraph limit initialBox = do
         return i
 
 -- | Pretty-prints a HeapGraph. The resulting string contains newlines. Example
--- for @"Hey!" ++ repeat "Ho"@:
+-- for @let s = "Ki" in (s, s, cycle "Ho")@:
 --
--- >let x10 = C# 'H' : C# 'o' : x10
--- >in C# 'H' : C# 'e' : C# 'y' : C# '!' : C# ' ' : x10
+-- >let x1 = "Ki"
+-- >    x6 = C# 'H' : C# 'o' : x6
+-- >in (x1,x1,x6)
 ppHeapGraph :: HeapGraph -> String
 ppHeapGraph (HeapGraph m) =
     "let " ++ intercalate "\n    " (map ppBinding bindings) ++ "\n" ++
     "in " ++ ppRef 0 (Just heapGraphRoot)
   where
-    bindings = boundMultipleTimes (HeapGraph m) [heapGraphRoot] 
-    ppBinding i = "x" ++ show i ++ " = " ++ ppEntry 0 (fromJust (M.lookup i m))
     -- All variables occuring more than once
-    ppEntry prec (HeapGraphEntry _ c) = ppPrintClosure ppRef prec c
+    bindings = boundMultipleTimes (HeapGraph m) [heapGraphRoot] 
+    ppBinding i = "x" ++ show i ++ " = " ++ ppEntry 0 (iToE i)
+
+    ppEntry prec e@(HeapGraphEntry _ c)
+        | Just s <- isString e = show s
+        | Just l <- isList e = "[" ++ intercalate "," (map (ppRef 0) l) ++ "]"
+        | otherwise = ppPrintClosure ppRef prec c
+
     ppRef _ Nothing = "..."
     ppRef prec (Just i) | i `elem` bindings = "x" ++ show i
-                        | otherwise = ppEntry prec (fromJust (M.lookup i m)) 
+                        | otherwise = ppEntry prec (iToE i) 
+    iToE i = fromJust (M.lookup i m)
+
+    iToUnboundE i = if i `elem` bindings then Nothing else M.lookup i m
+                  
+        
+
+    isList :: HeapGraphEntry -> Maybe ([Maybe HeapGraphIndex])
+    isList (HeapGraphEntry _ c) = 
+        if isNil c
+          then return []
+          else do
+            (h,t) <- isCons c
+            ti <- t
+            e <- iToUnboundE ti
+            t' <- isList e
+            return $ (:) h t'
+
+    isString :: HeapGraphEntry -> Maybe String
+    isString e = do
+        list <- isList e
+        -- We do not want to print empty lists as "" as we do not know that they
+        -- are really strings.
+        if (null list)
+            then Nothing
+            else mapM (isChar . (\(HeapGraphEntry _ c) -> c) <=< iToUnboundE <=< id) list
+
 
 -- | In the given HeapMap, list all indices that are used more than once. The
 -- second parameter adds external references, commonly @[heapGraphRoot]@.
