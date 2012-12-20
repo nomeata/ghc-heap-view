@@ -778,7 +778,7 @@ buildHeapGraph limit initialBox = do
 -- >    x3 = C# 'o'
 -- >in x0
 ppHeapGraph :: HeapGraph -> String
-ppHeapGraph (HeapGraph m) = "let " ++ intercalate "\n    " (map ppEntry (M.assocs m)) ++ "\nin x0"
+ppHeapGraph (HeapGraph m) = "let " ++ intercalate "\n    " (map ppEntry (M.assocs m)) ++ "\nin x" ++ show heapGraphRoot
   where
     ppEntry (i,HeapGraphEntry _ c) = "x" ++ show i ++ " = " ++ ppPrintClosure go 0 c
     go _ Nothing = "..."
