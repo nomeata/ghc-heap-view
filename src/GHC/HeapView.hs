@@ -33,7 +33,9 @@ module GHC.HeapView (
     HeapGraphIndex,
     HeapGraph(..),
     lookupHeapGraph,
+    heapGraphRoot,
     buildHeapGraph,
+    ppHeapGraph,
     -- * Boxes
     Box(..),
     asBox,
@@ -728,8 +730,11 @@ newtype HeapGraph = HeapGraph (M.IntMap HeapGraphEntry)
 lookupHeapGraph :: HeapGraphIndex -> HeapGraph -> Maybe HeapGraphEntry
 lookupHeapGraph i (HeapGraph m) = M.lookup i m
 
+heapGraphRoot :: HeapGraphIndex
+heapGraphRoot = 0
+
 -- | Creates a 'HeapGraph' for the value in the box, but not recursing further
--- than the given limit.
+-- than the given limit. The initial value has index 'heapGraphRoot'.
 buildHeapGraph :: Int -> Box -> IO HeapGraph
 buildHeapGraph limit initialBox = do
     let initialState = ([], [0..])
@@ -757,6 +762,20 @@ buildHeapGraph limit initialBox = do
         i <- gets (head . snd)
         modify (second tail)
         return i
+
+-- | Pretty-prints a HeapGraph. The resulting string contains newlines. Example for @repeat "Ho"@:
+--
+-- >let x0 = x1 : x2
+-- >    x1 = C# 'H'
+-- >    x2 = x3 : x0
+-- >    x3 = C# 'o'
+-- >in x0
+ppHeapGraph :: HeapGraph -> String
+ppHeapGraph (HeapGraph m) = "let " ++ intercalate "\n    " (map ppEntry (M.assocs m)) ++ "\nin x0"
+  where
+    ppEntry (i,HeapGraphEntry _ c) = "x" ++ show i ++ " = " ++ ppPrintClosure go 0 c
+    go _ Nothing = "..."
+    go _ (Just i) = "x" ++ show i
 
 -- | An a variant of 'Box' that does not keep the value alive.
 -- 
