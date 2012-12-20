@@ -19,22 +19,22 @@ Description:
   >> :printHeap x
   >let x1 = _bco
   >    x21 = []
-  >let (x1,_bco,_bco)
+  >in (x1,_bco,_bco)
   >> length (take 100 (show x)) `seq` return () -- evaluate everything
   >> :printHeap x
   >let x1 = "A Value"
   >    x16 = True : False : x16
-  >let (x1,x1,x16)
+  >in (x1,x1,x16)
   .
   You can change the maximum recursion depth using @:setPrintHeapDepth@:
   .
   >> :setPrintHeapDepth 3
   >> :printHeap x
   >let x1 = C# 'A' : ... : ...
-  >let (x1,x1,True : ... : ...)
+  >in (x1,x1,True : ... : ...)
   .
   If the view is impaired by blackholes (written @_bh@), running
-  'System.Mem.perfromGC' usually helps.
+  @System.Mem.performGC@ usually helps.
   .
   The work on this package has been supported by the Deutsche Telekom Stiftung
   (<http://telekom-stiftung.de>).

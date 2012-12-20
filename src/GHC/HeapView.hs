@@ -796,7 +796,7 @@ ppHeapGraph (HeapGraph m) = letWrapper ++ ppRef 0 (Just heapGraphRoot)
     letWrapper =
         if null bindings
         then ""
-        else "let " ++ intercalate "\n    " (map ppBinding bindings) ++ "\nlet "
+        else "let " ++ intercalate "\n    " (map ppBinding bindings) ++ "\nin "
 
     ppBinding i = "x" ++ show i ++ " = " ++ ppEntry 0 (iToE i)
 
