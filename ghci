@@ -1,0 +1,5 @@
+let _ghcHeapViewDepth = 1000 :: Int
+
+:def setPrintHeapDepth \x -> return $ "let _ghcHeapViewDepth = " ++ x ++ ":: Int"
+
+:def printHeap \x -> return $ "GHC.HeapView.buildHeapGraph _ghcHeapViewDepth (GHC.HeapView.asBox (" ++ x ++ ")) >>= putStrLn . GHC.HeapView.ppHeapGraph"
