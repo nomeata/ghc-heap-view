@@ -8,6 +8,34 @@ Description:
   It has been inspired by (and taken code from) the vacuum package and the GHCi
   debugger, but also allows to investiage thunks and other closures. 
   .
+  This package also provides a new GHCi-command, @:printHeap@, which allows you
+  to inspect the current heap representation of a value, including sharing and
+  cyclic references. To enable the command, you need to load the included ghci
+  script or add it to @~/.ghci@, as explained by @cabal install@. Once it is
+  set up, you can do this:
+  .
+  >> let value = "A Value"
+  >> let x = (value, if head value == 'A' then value else "", cycle [True, False])
+  >> :printHeap x
+  >let x1 = _bco
+  >    x21 = []
+  >let (x1,_bco,_bco)
+  >> length (take 100 (show x)) `seq` return () -- evaluate everything
+  >> :printHeap x
+  >let x1 = "A Value"
+  >    x16 = True : False : x16
+  >let (x1,x1,x16)
+  .
+  You can change the maximum recursion depth using @:setPrintHeapDepth@:
+  .
+  >> :setPrintHeapDepth 3
+  >> :printHeap x
+  >let x1 = C# 'A' : ... : ...
+  >let (x1,x1,True : ... : ...)
+  .
+  If the view is impaired by blackholes (written @_bh@), running
+  'System.Mem.perfromGC' usually helps.
+  .
   The work on this package has been supported by the Deutsche Telekom Stiftung
   (<http://telekom-stiftung.de>).
 License:             BSD3
