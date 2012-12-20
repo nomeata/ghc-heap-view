@@ -18,13 +18,17 @@ module GHC.HeapView (
     ClosureType(..),
     StgInfoTable(..),
     HalfWord,
-    -- * Pretty printing
-    prettyPrintClosure,
-    prettyDeeplyPrintClosure,
     -- * Reading from the heap
     getClosureData,
     getBoxedClosureData,
     getClosureRaw,
+    -- * Pretty printing
+    ppPrintClosure,
+    -- * Heap maps
+    -- $heapmap
+    HeapTree(..),
+    buildHeapTree,
+    ppHeapTree,
     -- * Boxes
     Box(..),
     asBox,
@@ -58,6 +62,7 @@ import System.Mem.Weak
 import Data.Foldable    ( Foldable )
 import Data.Traversable ( Traversable )
 import qualified Data.Traversable as T
+import Control.Monad
 
 #include "ghcautoconf.h"
 
@@ -394,71 +399,6 @@ allPtrs (OtherClosure {..}) = hvalues
 allPtrs (UnsupportedClosure {..}) = []
 
 
--- | A pretty-printer that tries to generate valid Haskell for evalutated data.
--- It assumes that for the included boxes, you already replaced them by Strings
--- using 'Data.Foldable.map' or, if you need to do IO, 'Data.Foldable.mapM'.
---
--- The boolean parameter indicates whether braces should be added when the
--- result is an application, e.g. a non-nullary constructor.
-prettyPrintClosure :: Bool -> GenClosure String -> String
-prettyPrintClosure ab c = case c of
-    ConsClosure {..} -> addParens $
-        name : ptrArgs ++ map show dataArgs
-    ThunkClosure {..} -> addParens $
-        "_thunk" : ptrArgs ++ map show dataArgs
-    SelectorClosure {..} -> addParens
-        ["_sel", selectee]
-    IndClosure {..} -> addParens
-        ["_ind", indirectee]
-    BlackholeClosure {..} -> addParens
-        ["_bh", indirectee]
-    APClosure {..} -> addParens $
-        fun : payload
-    PAPClosure {..} -> addParens $
-        fun : payload
-    APStackClosure {..} -> addParens $
-        fun : payload
-    BCOClosure {..} -> addParens
-        ["_bco"]
-    ArrWordsClosure {..} -> addParens
-        ["toArray", intercalate "," (map show arrWords) ]
-    MutArrClosure {..} -> addParens
-        ["toMutArray", intercalate "," mccPayload]
-    MutVarClosure {..} -> addParens $
-        ["_mutVar", var]
-    MVarClosure {..} -> addParens $
-        ["MVar", value]
-    FunClosure {..} -> 
-        "_fun" ++ bracketize (ptrArgs ++ map show dataArgs)
-    BlockingQueueClosure {..} -> 
-        "_blockingQueue"
-    OtherClosure {..} ->
-        "_other"
-    UnsupportedClosure {..} ->
-        "_unsupported"
-  where
-    addParens [] = "()" -- not used
-    addParens [a] = a 
-    addParens xs = if ab
-                   then "(" ++ intercalate " " xs ++ ")"
-                   else intercalate " " xs 
-    bracketize [] = ""
-    bracketize xs = "[" ++ intercalate "," xs ++ "]"
-    
--- | Using 'prettyPrintClosure', prints a closure recursively. Will diverge for
--- cyclic or infinite input.
--- 
--- Example output for @[Just 4, Nothing]@:
---
--- > : (Just (I# 4)) (: Nothing [])
-prettyDeeplyPrintClosure :: Closure -> IO String
-prettyDeeplyPrintClosure c = prettyPrintClosure False `fmap` T.mapM printBox c
-  where
-    printBox b = do
-        c' <- getBoxedClosureData b
-        c'' <- T.mapM printBox c'
-        return $ prettyPrintClosure True c''
-
 
 #ifdef PRIM_SUPPORTS_ANY
 foreign import prim "aToWordzh" aToWord# :: Any -> Word#
@@ -657,6 +597,124 @@ getClosureData x = do
 -- | Like 'getClosureData', but taking a 'Box', so it is easier to work with.
 getBoxedClosureData :: Box -> IO Closure
 getBoxedClosureData (Box a) = getClosureData a
+
+
+isChar :: GenClosure b -> Maybe Char
+isChar (ConsClosure { name = "C#", dataArgs = [ch], ptrArgs = []}) = Just (chr (fromIntegral ch))
+isChar _ = Nothing
+
+isCons :: GenClosure b -> Maybe (b, b)
+isCons (ConsClosure { name = ":", dataArgs = [], ptrArgs = [h,t]}) = Just (h,t)
+isCons _ = Nothing
+
+isNil :: GenClosure b -> Bool
+isNil (ConsClosure { name = "[]", dataArgs = [], ptrArgs = []}) = True
+isNil _ = False
+
+-- | A pretty-printer that tries to generate valid Haskell for evalutated data.
+-- It assumes that for the included boxes, you already replaced them by Strings
+-- using 'Data.Foldable.map' or, if you need to do IO, 'Data.Foldable.mapM'.
+--
+-- The parameter gives the precedendence, to avoid avoidable parenthesises.
+ppPrintClosure :: (Int -> b -> String) -> Int -> GenClosure b -> String
+ppPrintClosure showBox prec c = case c of
+    _ | Just ch <- isChar c -> app $
+        ["C#", show ch]
+    _ | Just (h,t) <- isCons c -> addBraces (5 <= prec) $
+        showBox 5 h ++ " : " ++ showBox 4 t
+    ConsClosure {..} -> app $
+        name : map (showBox 10) ptrArgs ++ map show dataArgs
+    ThunkClosure {..} -> app $
+        "_thunk" : map (showBox 10) ptrArgs ++ map show dataArgs
+    SelectorClosure {..} -> app
+        ["_sel", showBox 10 selectee]
+    IndClosure {..} -> app
+        ["_ind", showBox 10 indirectee]
+    BlackholeClosure {..} -> app
+        ["_bh",  showBox 10 indirectee]
+    APClosure {..} -> app $ map (showBox 10) $
+        fun : payload
+    PAPClosure {..} -> app $ map (showBox 10) $
+        fun : payload
+    APStackClosure {..} -> app $ map (showBox 10) $
+        fun : payload
+    BCOClosure {..} -> app
+        ["_bco"]
+    ArrWordsClosure {..} -> app
+        ["toArray", intercalate "," (map show arrWords) ]
+    MutArrClosure {..} -> app
+        ["toMutArray", intercalate "," (map (showBox 10) mccPayload)]
+    MutVarClosure {..} -> app $
+        ["_mutVar", (showBox 10) var]
+    MVarClosure {..} -> app $
+        ["MVar", (showBox 10) value]
+    FunClosure {..} -> 
+        "_fun" ++ braceize (map (showBox 0) ptrArgs ++ map show dataArgs)
+    BlockingQueueClosure {..} -> 
+        "_blockingQueue"
+    OtherClosure {..} ->
+        "_other"
+    UnsupportedClosure {..} ->
+        "_unsupported"
+  where
+    addBraces True t = "(" ++ t ++ ")"
+    addBraces False t = t
+    app [] = "()"
+    app [a] = a 
+    app xs = addBraces (10 <= prec) (intercalate " " xs)
+    braceize [] = ""
+    braceize xs = "{" ++ intercalate "," xs ++ "}"
+    
+-- $heapmap
+-- For more global views of the heap, you can use heap maps. These come in
+-- variations, either a trees or as graphs, depending on
+-- whether you want to detect cycles and sharing or not.
+
+-- | Heap maps as tree, i.e. no sharing, no cycles.
+data HeapTree = HeapTree WeakBox (GenClosure HeapTree) | EndOfHeapTree
+
+heapTreeClosure :: HeapTree -> Maybe (GenClosure HeapTree)
+heapTreeClosure (HeapTree _ c) = Just c
+heapTreeClosure EndOfHeapTree = Nothing
+
+-- | Constructing an 'HeapTree' from a boxed value. It takes a depth parameter
+-- that prevents it from running ad infinitum for cyclic or infinite
+-- structures.
+buildHeapTree :: Int -> Box -> IO HeapTree
+buildHeapTree 0 _ = do
+    return $ EndOfHeapTree
+buildHeapTree n b = do
+    w <- weakBox b
+    c <- getBoxedClosureData b
+    c' <- T.mapM (buildHeapTree (n-1)) c
+    return $ HeapTree w c'
+
+-- | Pretty-Printing a heap Tree
+-- 
+-- Example output for @[Just 4, Nothing]@:
+--
+-- > : (Just (I# 4)) (: Nothing [])
+ppHeapTree :: HeapTree -> String
+ppHeapTree = go 0
+  where
+    go _ EndOfHeapTree = "..."
+    go prec t@(HeapTree _ c')
+        | Just s <- isHeapTreeString t = show s
+        | Just l <- isHeapTreeList t   = "[" ++ intercalate "," (map ppHeapTree l) ++ "]"
+        | otherwise                    =  ppPrintClosure go prec c'
+
+isHeapTreeList :: HeapTree -> Maybe ([HeapTree])
+isHeapTreeList tree = do
+    c <- heapTreeClosure tree
+    if isNil c
+      then return []
+      else do
+        (h,t) <- isCons c
+        t' <- isHeapTreeList t
+        return $ (:) h t'
+
+isHeapTreeString :: HeapTree -> Maybe String
+isHeapTreeString = mapM (isChar <=< heapTreeClosure) <=< isHeapTreeList
 
 
 -- | An a variant of 'Box' that does not keep the value alive.
