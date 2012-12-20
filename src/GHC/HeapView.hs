@@ -63,8 +63,8 @@ import System.IO.Unsafe ( unsafePerformIO )
 import Foreign          hiding ( unsafePerformIO )
 import Numeric          ( showHex )
 import Data.Char
-import Data.List        ( intersperse, intercalate )
-import Data.Maybe       ( isJust )
+import Data.List
+import Data.Maybe       ( isJust, fromJust, catMaybes )
 import System.Mem.Weak
 import Data.Functor
 import Data.Foldable    ( Foldable )
@@ -776,19 +776,29 @@ buildHeapGraph limit initialBox = do
         modify (second tail)
         return i
 
--- | Pretty-prints a HeapGraph. The resulting string contains newlines. Example for @repeat "Ho"@:
+-- | Pretty-prints a HeapGraph. The resulting string contains newlines. Example
+-- for @"Hey!" ++ repeat "Ho"@:
 --
--- >let x0 = x1 : x2
--- >    x1 = C# 'H'
--- >    x2 = x3 : x0
--- >    x3 = C# 'o'
--- >in x0
+-- >let x10 = C# 'H' : C# 'o' : x10
+-- >in C# 'H' : C# 'e' : C# 'y' : C# '!' : C# ' ' : x10
 ppHeapGraph :: HeapGraph -> String
-ppHeapGraph (HeapGraph m) = "let " ++ intercalate "\n    " (map ppEntry (M.assocs m)) ++ "\nin x" ++ show heapGraphRoot
+ppHeapGraph (HeapGraph m) =
+    "let " ++ intercalate "\n    " (map ppBinding bindings) ++ "\n" ++
+    "in " ++ ppRef 0 (Just heapGraphRoot)
   where
-    ppEntry (i,HeapGraphEntry _ c) = "x" ++ show i ++ " = " ++ ppPrintClosure go 0 c
-    go _ Nothing = "..."
-    go _ (Just i) = "x" ++ show i
+    bindings = boundMultipleTimes (HeapGraph m) [heapGraphRoot] 
+    ppBinding i = "x" ++ show i ++ " = " ++ ppEntry 0 (fromJust (M.lookup i m))
+    -- All variables occuring more than once
+    ppEntry prec (HeapGraphEntry _ c) = ppPrintClosure ppRef prec c
+    ppRef _ Nothing = "..."
+    ppRef prec (Just i) | i `elem` bindings = "x" ++ show i
+                        | otherwise = ppEntry prec (fromJust (M.lookup i m)) 
+
+-- | In the given HeapMap, list all indices that are used more than once. The
+-- second parameter adds external references, commonly @[heapGraphRoot]@.
+boundMultipleTimes :: HeapGraph -> [HeapGraphIndex] -> [HeapGraphIndex]
+boundMultipleTimes (HeapGraph m) roots = map head $ filter (not.null) $ map tail $ group $ sort $
+     roots ++ concatMap (\(HeapGraphEntry _ c) -> catMaybes (allPtrs c)) (M.elems m)
 
 -- | An a variant of 'Box' that does not keep the value alive.
 -- 
