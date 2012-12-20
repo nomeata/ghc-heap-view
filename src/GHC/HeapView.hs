@@ -604,9 +604,14 @@ isCons :: GenClosure b -> Maybe (b, b)
 isCons (ConsClosure { name = ":", dataArgs = [], ptrArgs = [h,t]}) = Just (h,t)
 isCons _ = Nothing
 
-isTup1 :: GenClosure b -> Maybe (b, b)
-isTup1 (ConsClosure { name = "(,)", dataArgs = [], ptrArgs = [h,t]}) = Just (h,t)
-isTup1 _ = Nothing
+isTup :: GenClosure b -> Maybe [b]
+isTup (ConsClosure { dataArgs = [], ..}) =
+    if length name >= 3 &&
+       head name == '(' && last name == ')' &&
+       all (==',') (tail (init name))
+    then Just ptrArgs else Nothing
+isTup _ = Nothing
+
 
 isNil :: GenClosure b -> Bool
 isNil (ConsClosure { name = "[]", dataArgs = [], ptrArgs = []}) = True
@@ -623,8 +628,8 @@ ppPrintClosure showBox prec c = case c of
         ["C#", show ch]
     _ | Just (h,t) <- isCons c -> addBraces (5 <= prec) $
         showBox 5 h ++ " : " ++ showBox 4 t
-    _ | Just (l,r) <- isTup1 c ->
-        "(" ++ showBox 0 l ++ "," ++ showBox 0 r ++ ")"
+    _ | Just vs <- isTup c ->
+        "(" ++ intercalate "," (map (showBox 0) vs) ++ ")"
     ConsClosure {..} -> app $
         name : map (showBox 10) ptrArgs ++ map show dataArgs
     ThunkClosure {..} -> app $
