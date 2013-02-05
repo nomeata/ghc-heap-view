@@ -8,7 +8,7 @@ Maintainer  :  Joachim Breitner <mail@joachim-breitner.de>
 
 To avoid space leaks and unwanted evaluation behaviour, the programmer might want his data to be fully evaluated at certians positions in the code. This can be enforced, for example, by ample use of "Control.DeepSeq", but this comes at a cost.
 
-Experienced users hence use 'deepseq' only to find out about the existance of space leaks and optimize their code to not create the thunks in the first place, until the code no longer shows better performance with 'deepseq'.
+Experienced users hence use 'Control.DeepSeq.deepseq' only to find out about the existance of space leaks and optimize their code to not create the thunks in the first place, until the code no longer shows better performance with 'deepseq'.
 
 This module provides an alternative approach: An explicit assertion about the evaluation state. If the programmer expect a certain value to be fully evaluated at a specific point of the program (e.g. before a call to 'writeIORef'), he can state that, and as long as assertions are enabled, this statement will be checked. In the production code the assertions can be disabled, to avoid the run-time cost.
 
@@ -68,7 +68,7 @@ assertNF = assertNF' "Parameter not in normal form"
 
 -- | In order to better identify the source of error messages from 'assertNF', this variant allows you to include a name that is printed in the output:
 --
--- >> assertNFNamed  "y" y
+-- >> assertNFNamed "y" y
 -- >y not in normal form: 2 thunks found:
 -- >let t1 = _bco
 -- >in (t1,t1)
@@ -78,7 +78,6 @@ assertNFNamed valName = assertNF' (valName ++ " not in normal form")
 
 -- | This function, when called as @$assertNFHere@ in a module with @-XTemplateHaskell@ enabled, will cause the current filename and position be included in the error message:
 --
--- >> assertNFNamed  "y" y
 -- >Parameter at Test.hs:18:1 not in normal form: 2 thunks found:
 -- >let t1 = _bco
 -- >in (t1,t1)
