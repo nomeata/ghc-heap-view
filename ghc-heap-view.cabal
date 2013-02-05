@@ -1,5 +1,5 @@
 Name:                ghc-heap-view
-Version:             0.4.1.0
+Version:             0.4.2.0
 Synopsis:            Extract the heap representation of Haskell values and thunks
 Description:
   This library provides functions to introspect the Haskell heap, for example
@@ -42,7 +42,7 @@ License:             BSD3
 License-file:        LICENSE
 Author:              Joachim Breitner, Dennis Felsing
 Maintainer:          Joachim Breitner <mail@joachim-breitner.de>
-Copyright:           2012 Joachim Breitner
+Copyright:           2012-2013 Joachim Breitner
 Category:            Debug, GHC
 Build-type:          Custom
 Cabal-version:       >=1.14
