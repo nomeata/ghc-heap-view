@@ -759,6 +759,7 @@ heapGraphRoot = 0
 -- | Creates a 'HeapGraph' for the value in the box, but not recursing further
 -- than the given limit. The initial value has index 'heapGraphRoot'.
 buildHeapGraph :: Int -> Box -> IO HeapGraph
+buildHeapGraph limit _ | limit <= 0 = error "buildHeapGraph: First argument has to be positive"
 buildHeapGraph limit initialBox = do
     let initialState = ([], [0..])
     HeapGraph <$> execWriterT (runStateT (add limit initialBox) initialState)
