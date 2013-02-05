@@ -64,9 +64,10 @@ import Foreign          hiding ( unsafePerformIO )
 import Numeric          ( showHex )
 import Data.Char
 import Data.List
-import Data.Maybe       ( isJust, fromJust, catMaybes )
+import Data.Maybe       ( isJust, catMaybes )
 import System.Mem.Weak
 import Data.Functor
+import Data.Function
 import Data.Foldable    ( Foldable )
 import Data.Traversable ( Traversable )
 import qualified Data.Traversable as T
@@ -802,7 +803,25 @@ ppHeapGraph (HeapGraph m) = letWrapper ++ ppRef 0 (Just heapGraphRoot)
         then ""
         else "let " ++ intercalate "\n    " (map ppBinding bindings) ++ "\nin "
 
-    ppBinding i = "x" ++ show i ++ " = " ++ ppEntry 0 (iToE i)
+    bindingLetter i = case iToE i of
+        HeapGraphEntry _ c -> case c of 
+            ThunkClosure {..} -> 't'
+            SelectorClosure {..} -> 't'
+            APClosure {..} -> 't'
+            PAPClosure {..} -> 'f'
+            BCOClosure {..} -> 't'
+            FunClosure {..} -> 'f'
+            _ -> 'x'
+
+    ppBinbingMap = M.fromList $
+        concat $
+        map (zipWith (\j (i,c) -> (i, [c] ++ show j)) [(1::Int)..]) $
+        groupBy ((==) `on` snd) $ 
+        sortBy (compare `on` snd)
+        [ (i, bindingLetter i) | i <- bindings ]
+
+    ppVar i = ppBinbingMap M.! i
+    ppBinding i = ppVar i ++ " = " ++ ppEntry 0 (iToE i)
 
     ppEntry prec e@(HeapGraphEntry _ c)
         | Just s <- isString e = show s
@@ -810,9 +829,9 @@ ppHeapGraph (HeapGraph m) = letWrapper ++ ppRef 0 (Just heapGraphRoot)
         | otherwise = ppClosure ppRef prec c
 
     ppRef _ Nothing = "..."
-    ppRef prec (Just i) | i `elem` bindings = "x" ++ show i
+    ppRef prec (Just i) | i `elem` bindings = ppVar i
                         | otherwise = ppEntry prec (iToE i) 
-    iToE i = fromJust (M.lookup i m)
+    iToE i = m M.! i
 
     iToUnboundE i = if i `elem` bindings then Nothing else M.lookup i m
 
