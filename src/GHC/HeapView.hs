@@ -814,14 +814,14 @@ ppHeapGraph (HeapGraph m) = letWrapper ++ ppRef 0 (Just heapGraphRoot)
             FunClosure {..} -> 'f'
             _ -> 'x'
 
-    ppBinbingMap = M.fromList $
+    ppBindingMap = M.fromList $
         concat $
         map (zipWith (\j (i,c) -> (i, [c] ++ show j)) [(1::Int)..]) $
         groupBy ((==) `on` snd) $ 
         sortBy (compare `on` snd)
         [ (i, bindingLetter i) | i <- bindings ]
 
-    ppVar i = ppBinbingMap M.! i
+    ppVar i = ppBindingMap M.! i
     ppBinding i = ppVar i ++ " = " ++ ppEntry 0 (iToE i)
 
     ppEntry prec e@(HeapGraphEntry _ c)
