@@ -35,6 +35,8 @@ module GHC.HeapView (
     lookupHeapGraph,
     heapGraphRoot,
     buildHeapGraph,
+    multiBuildHeapGraph,
+    addHeapGraph,
     ppHeapGraph,
     -- * Boxes
     Box(..),
@@ -77,7 +79,6 @@ import Control.Monad.Trans.State
 import Control.Monad.Trans.Class
 import Control.Monad.IO.Class
 import Control.Monad.Trans.Writer.Strict
-import Control.Arrow    ( first, second )
 
 #include "ghcautoconf.h"
 
@@ -758,32 +759,57 @@ heapGraphRoot = 0
 -- | Creates a 'HeapGraph' for the value in the box, but not recursing further
 -- than the given limit. The initial value has index 'heapGraphRoot'.
 buildHeapGraph :: Int -> Box -> IO HeapGraph
-buildHeapGraph limit _ | limit <= 0 = error "buildHeapGraph: First argument has to be positive"
-buildHeapGraph limit initialBox = do
-    let initialState = ([], [0..])
-    HeapGraph <$> execWriterT (runStateT (add limit initialBox) initialState)
+buildHeapGraph limit initialBox = fst <$> generalBuildHeapGraph [] [0..] limit [initialBox]
+
+multiBuildHeapGraph :: Int -> [Box] -> IO (HeapGraph, [(Box, HeapGraphIndex)])
+multiBuildHeapGraph = generalBuildHeapGraph [] [0..]
+
+-- | Adds an entry to an existing 'HeapGraph'.
+addHeapGraph :: HeapGraph -> Int -> Box -> IO HeapGraph
+addHeapGraph (HeapGraph hg) limit initialBox = do
+    newStart <- foldM toStartList [] $ M.toList hg
+    let newIndex = 1 + (maximum $ map snd newStart)
+    (HeapGraph newHG, _) <- generalBuildHeapGraph newStart [newIndex..] limit [initialBox]
+    return $ HeapGraph $ M.union hg newHG
+  where toStartList xs (i, HeapGraphEntry wb _) = do
+            derefWeakBox wb >>= \mbB -> return $ case mbB of
+              Nothing -> xs
+              Just b  -> (b,i):xs
+
+generalBuildHeapGraph :: [(Box, HeapGraphIndex)] -> [HeapGraphIndex] -> Int -> [Box] -> IO (HeapGraph, [(Box, HeapGraphIndex)])
+generalBuildHeapGraph _ _ limit _ | limit <= 0 = error "buildHeapGraph: limit has to be positive"
+generalBuildHeapGraph knownEntries newIndices limit initialBoxes = do
+    let initialState = (knownEntries, newIndices, [])
+    (is, hg) <- runWriterT (evalStateT run initialState)
+    return (HeapGraph hg, is)
   where
+    run = do
+        _ <- mapM (add limit) initialBoxes
+        (_,_,is) <- get
+        return is
+
     add 0 _ = return Nothing
     add n b = do
         -- If the box is in the map, return the index
-        (existing,_) <- get
+        (existing,_,_) <- get
         case lookup b existing of
             Just i -> return $ Just i
             Nothing -> do
                 -- Otherwise, allocate a new index
                 i <- nextI
                 -- And register it
-                modify (first ((b,i):))
+                modify (\(x,y,z) -> ((b,i):x, y, z))
                 c <- liftIO $ getBoxedClosureData b
                 -- Find indicies for all boxes contained in the map
                 c' <- T.mapM (add (n-1)) c
                 w <- liftIO $ weakBox b
                 -- Add add the resulting closure to the map
                 lift $ tell (M.singleton i (HeapGraphEntry w c'))
+                when (b `elem` initialBoxes) $ modify (\(x,y,z) -> (x,y,(b,i):z))
                 return $ Just i
     nextI = do
-        i <- gets (head . snd)
-        modify (second tail)
+        i <- gets (head . (\(_,b,_) -> b))
+        modify (\(a,b,c) -> (a, tail b, c))
         return i
 
 -- | Pretty-prints a HeapGraph. The resulting string contains newlines. Example
