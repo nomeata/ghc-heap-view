@@ -1,4 +1,4 @@
-{-# LANGUAGE CPP, ScopedTypeVariables #-}
+{-# LANGUAGE CPP, ScopedTypeVariables, DoAndIfThenElse #-}
 -- | A disassembler for ByteCode objects as used by GHCi.
 module GHC.Disassembler (
     toBytes,
@@ -14,7 +14,6 @@ import Data.Word
 import Data.Int
 import Data.Monoid
 import Data.Bits
-import Debug.Trace
 import Data.Functor
 
 #include "ghcautoconf.h"
@@ -38,12 +37,12 @@ disassemble :: forall box. [box] -> [Word] -> ByteString -> [BCI box]
 disassemble ptrs lits = runGet $ do
     -- Ignore length tag. Needs to be skipped with GHC versions with
     -- http://hackage.haskell.org/trac/ghc/ticket/7518 included
-    getWord16host
+    _ <- getWord16host
 #if SIZEOF_VOID_P == 8
-    getWord16host
-    getWord16host
+    _ <- getWord16host
+    _ <- getWord16host
 #endif
-    n <- getWord16host
+    _n <- getWord16host
     nextInst
   where
     getLiteral :: Get Word
@@ -75,7 +74,6 @@ disassemble ptrs lits = runGet $ do
                 n <- getLarge
                 return $ BCISTKCHECK (n + 1)
             bci_PUSH_L -> do
-                return BCIPUSH_L
                 o1 <- getWord16host
                 return $ BCIPUSH_L o1
             bci_PUSH_LL -> do
@@ -83,7 +81,6 @@ disassemble ptrs lits = runGet $ do
                 o2 <- getWord16host
                 return $ BCIPUSH_LL o1 o2
             bci_PUSH_LLL -> do
-                return BCIPUSH_LLL
                 o1 <- getWord16host
                 o2 <- getWord16host
                 o3 <- getWord16host
@@ -113,8 +110,8 @@ disassemble ptrs lits = runGet $ do
                 p <- getPtr
                 return $ BCIPUSH_ALTS_V p
             bci_PUSH_UBX -> do
-                lits <- getLiterals
-                return $ BCIPUSH_UBX lits
+                ubx_lits <- getLiterals
+                return $ BCIPUSH_UBX ubx_lits
             bci_PUSH_APPLY_N -> do
                 return BCIPUSH_APPLY_N
             bci_PUSH_APPLY_F -> do
@@ -234,9 +231,9 @@ disassemble ptrs lits = runGet $ do
             bci_RETURN_V -> do
                 return BCIRETURN_V
             bci_BRK_FUN -> do
-                getWord16host
-                getWord16host
-                getWord16host
+                _ <- getWord16host
+                _ <- getWord16host
+                _ <- getWord16host
                 return BCIBRK_FUN
             x -> error $ "Unknown opcode " ++ show x
         (i :) `fmap` nextInst

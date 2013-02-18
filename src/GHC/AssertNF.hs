@@ -1,4 +1,4 @@
-{-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE BangPatterns, DoAndIfThenElse #-}
 
 {-|
 Module      :  GHC.AssertNF
