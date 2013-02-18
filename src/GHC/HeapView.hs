@@ -401,7 +401,6 @@ allPtrs (OtherClosure {..}) = hvalues
 allPtrs (UnsupportedClosure {..}) = []
 
 
-
 #ifdef PRIM_SUPPORTS_ANY
 foreign import prim "aToWordzh" aToWord# :: Any -> Word#
 foreign import prim "slurpClosurezh" slurpClosure# :: Any -> (# Addr#, ByteArray#, Array# b #)
