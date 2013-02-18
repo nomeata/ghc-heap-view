@@ -67,6 +67,7 @@ import Numeric          ( showHex )
 import Data.Char
 import Data.List
 import Data.Maybe       ( isJust, catMaybes )
+import Data.Tuple       ( swap )
 import System.Mem.Weak
 import Data.Functor
 import Data.Function
@@ -759,24 +760,27 @@ heapGraphRoot = 0
 -- | Creates a 'HeapGraph' for the value in the box, but not recursing further
 -- than the given limit. The initial value has index 'heapGraphRoot'.
 buildHeapGraph :: Int -> Box -> IO HeapGraph
-buildHeapGraph limit initialBox = fst <$> generalBuildHeapGraph [] [0..] limit [initialBox]
+buildHeapGraph limit initialBox = fst <$> generalBuildHeapGraph [] [0..] limit [((),initialBox)]
 
-multiBuildHeapGraph :: Int -> [Box] -> IO (HeapGraph, [(Box, HeapGraphIndex)])
+-- | Creates a 'HeapGraph' for the values in multiple boxes, but not recursing
+--   further than the given limit. The indices of initial values are returned.
+multiBuildHeapGraph :: Int -> [(a, Box)] -> IO (HeapGraph, [(a, HeapGraphIndex)])
 multiBuildHeapGraph = generalBuildHeapGraph [] [0..]
 
--- | Adds an entry to an existing 'HeapGraph'.
-addHeapGraph :: HeapGraph -> Int -> Box -> IO HeapGraph
+-- | Adds an entry to an existing 'HeapGraph'. The index of the initial value
+--   is also returned.
+addHeapGraph :: HeapGraph -> Int -> Box -> IO (HeapGraphIndex, HeapGraph)
 addHeapGraph (HeapGraph hg) limit initialBox = do
     newStart <- foldM toStartList [] $ M.toList hg
     let newIndex = 1 + (maximum $ map snd newStart)
-    (HeapGraph newHG, _) <- generalBuildHeapGraph newStart [newIndex..] limit [initialBox]
-    return $ HeapGraph $ M.union hg newHG
+    (HeapGraph newHG, _) <- generalBuildHeapGraph newStart [newIndex..] limit [((),initialBox)]
+    return $ (newIndex, HeapGraph $ M.union hg newHG)
   where toStartList xs (i, HeapGraphEntry wb _) = do
             derefWeakBox wb >>= \mbB -> return $ case mbB of
               Nothing -> xs
               Just b  -> (b,i):xs
 
-generalBuildHeapGraph :: [(Box, HeapGraphIndex)] -> [HeapGraphIndex] -> Int -> [Box] -> IO (HeapGraph, [(Box, HeapGraphIndex)])
+generalBuildHeapGraph :: [(Box, HeapGraphIndex)] -> [HeapGraphIndex] -> Int -> [(a,Box)] -> IO (HeapGraph, [(a, HeapGraphIndex)])
 generalBuildHeapGraph _ _ limit _ | limit <= 0 = error "buildHeapGraph: limit has to be positive"
 generalBuildHeapGraph knownEntries newIndices limit initialBoxes = do
     let initialState = (knownEntries, newIndices, [])
@@ -784,7 +788,7 @@ generalBuildHeapGraph knownEntries newIndices limit initialBoxes = do
     return (HeapGraph hg, is)
   where
     run = do
-        _ <- mapM (add limit) initialBoxes
+        _ <- mapM (add limit) $ map snd initialBoxes
         (_,_,is) <- get
         return is
 
@@ -805,7 +809,9 @@ generalBuildHeapGraph knownEntries newIndices limit initialBoxes = do
                 w <- liftIO $ weakBox b
                 -- Add add the resulting closure to the map
                 lift $ tell (M.singleton i (HeapGraphEntry w c'))
-                when (b `elem` initialBoxes) $ modify (\(x,y,z) -> (x,y,(b,i):z))
+                case initialLookup b of
+                  Nothing  -> return ()
+                  Just val -> modify (\(x,y,z) -> (x,y,(val,i):z))
                 return $ Just i
     nextI = do
         i <- gets (head . (\(_,b,_) -> b))
