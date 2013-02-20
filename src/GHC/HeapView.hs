@@ -763,12 +763,17 @@ buildHeapGraph :: Int -> Box -> IO HeapGraph
 buildHeapGraph limit initialBox = fst <$> generalBuildHeapGraph [] [0..] limit [((),initialBox)]
 
 -- | Creates a 'HeapGraph' for the values in multiple boxes, but not recursing
---   further than the given limit. The indices of initial values are returned.
+--   further than the given limit.
+--
+--   Returns the 'HeapGraph' and the indices of initial values. The arbitrary
+--   type @a@ can be used to make the connection between the input and the
+--   resulting list of indices.
 multiBuildHeapGraph :: Int -> [(a, Box)] -> IO (HeapGraph, [(a, HeapGraphIndex)])
 multiBuildHeapGraph = generalBuildHeapGraph [] [0..]
 
--- | Adds an entry to an existing 'HeapGraph'. The index of the initial value
---   is also returned.
+-- | Adds an entry to an existing 'HeapGraph'.
+--
+--   Returns the updated 'HeapGraph' and the index of the added value.
 addHeapGraph :: HeapGraph -> Int -> Box -> IO (HeapGraphIndex, HeapGraph)
 addHeapGraph (HeapGraph hg) limit initialBox = do
     newStart <- foldM toStartList [] $ M.toList hg
