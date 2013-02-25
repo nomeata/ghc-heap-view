@@ -823,6 +823,8 @@ generalBuildHeapGraph knownEntries newIndices limit initialBoxes = do
         modify (\(a,b,c) -> (a, tail b, c))
         return i
 
+    initialLookup b = lookup b $ map swap initialBoxes
+
 -- | Pretty-prints a HeapGraph. The resulting string contains newlines. Example
 -- for @let s = "Ki" in (s, s, cycle "Ho")@:
 --
