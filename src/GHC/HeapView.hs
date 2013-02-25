@@ -1,4 +1,4 @@
-{-# LANGUAGE MagicHash, UnboxedTuples, CPP, ForeignFunctionInterface, GHCForeignImportPrim, UnliftedFFITypes, BangPatterns, RecordWildCards, DeriveFunctor, DeriveFoldable, DeriveTraversable, PatternGuards #-}
+{-# LANGUAGE MagicHash, UnboxedTuples, CPP, ForeignFunctionInterface, GHCForeignImportPrim, UnliftedFFITypes, BangPatterns, RecordWildCards, DeriveFunctor, DeriveFoldable, DeriveTraversable, PatternGuards, RecursiveDo #-}
 {-|
 Module      :  GHC.HeapView
 Copyright   :  (c) 2012 Joachim Breitner
@@ -38,6 +38,7 @@ module GHC.HeapView (
     multiBuildHeapGraph,
     addHeapGraph,
     annotateHeapGraph,
+    updateHeapGraph,
     ppHeapGraph,
     -- * Boxes
     Box(..),
@@ -874,6 +875,44 @@ generalBuildHeapGraph limit (HeapGraph hg) addBoxes = do
         i <- gets (head . (\(_,b,_) -> b))
         modify (\(a,b,c) -> (a, tail b, c))
         return i
+
+-- | This function updates a heap graph to reflect the current state of
+-- closures on the heap, conforming to the following specification.
+--
+--  * Every entry whose value has been garbage collected by now is marked as
+--    dead by setting 'hgeLive' to @False@
+--  * Every entry whose value is still live gets the 'hgeClosure' field updated
+--    and newly referenced closures are, up to the given depth, added to the graph.
+--  * A map mapping previous indicies to the corresponding new indicies is returned as well.
+--  * The closure at 'heapGraphRoot' stays at 'heapGraphRoot'
+updateHeapGraph :: Monoid a => Int -> HeapGraph a -> IO (HeapGraph a, HeapGraphIndex -> HeapGraphIndex)
+updateHeapGraph limit (HeapGraph startHG) = mdo -- recursive do!
+    (hg', indexMap) <- runWriterT $ foldM (go indexFunction) (HeapGraph M.empty) (M.toList startHG)
+    let indexFunction = (M.!) indexMap
+    return (hg', indexFunction)
+  where
+    --go :: (HeapGraphIndex -> HeapGraphIndex) ->
+    --      HeapGraph a -> (HeapGraphIndex, HeapGraphEntry a) -> IO (HeapGraph a)
+    go i2j hg (i, hge) = do
+        mbBox <- liftIO $ derefWeakBox (hgeBox hge)
+        (j, hg') <- case mbBox of 
+            -- The entry is still live, add it to the heap, remembering the
+            -- data but throwing away the prevoius closure
+            Just b -> liftIO $ addHeapGraph limit (hgeData hge) b hg
+            -- The entry is dead, so mark it as such. We also need to update
+            -- theead indices; we use lazyness here.
+            Nothing -> return $ addHeapGraphEntry (hge {
+                        hgeLive = False,
+                        hgeClosure = fmap (fmap i2j) (hgeClosure hge)
+                        }) hg
+        tell (M.singleton i j)
+        return hg'
+                
+addHeapGraphEntry :: HeapGraphEntry a -> HeapGraph a -> (HeapGraphIndex, HeapGraph a)
+addHeapGraphEntry hge (HeapGraph hg) = 
+    let index | M.null hg = 0
+              | otherwise = 1 + fst (M.findMax hg)
+    in (index, HeapGraph (M.insert index hge hg))
 
 -- | Pretty-prints a HeapGraph. The resulting string contains newlines. Example
 -- for @let s = \"Ki\" in (s, s, cycle \"Ho\")@:
