@@ -100,10 +100,13 @@ instance Show Box where
        pad_out ls = 
           '0':'x':(replicate (2*wORD_SIZE - length ls) '0') ++ ls
 
-instance Eq Box where
-  Box a == Box b = case reallyUnsafePtrEqualityUpToTag# a b of
-    0# -> False
-    _  -> True
+-- | Boxes can be compared, but this is not pure, as different heap objects an,
+-- after garbage collection, become the same object.
+areBoxesEqual :: Box -> Box -> IO Bool
+areBoxesEqual (Box a) (Box b) = case reallyUnsafePtrEqualityUpToTag# a b of
+    0# -> return False
+    _  -> return True
+
 
 {-|
   This takes an arbitrary value and puts it into a box. Note that calls like
@@ -841,8 +844,9 @@ generalBuildHeapGraph limit (HeapGraph hg) addBoxes = do
     add n b = do
         -- If the box is in the map, return the index
         (existing,_,_) <- get
-        case lookup b existing of
-            Just i -> return $ Just i
+        mbI <- liftIO $ findM (areBoxesEqual b . fst) existing
+        case mbI of
+            Just (_,i) -> return $ Just i
             Nothing -> do
                 -- Otherwise, allocate a new index
                 i <- nextI
@@ -954,3 +958,9 @@ boundMultipleTimes :: HeapGraph a -> [HeapGraphIndex] -> [HeapGraphIndex]
 boundMultipleTimes (HeapGraph m) roots = map head $ filter (not.null) $ map tail $ group $ sort $
      roots ++ concatMap (catMaybes . allPtrs . hgeClosure) (M.elems m)
 
+
+findM :: (a -> IO Bool) -> [a] -> IO (Maybe a)
+findM _p [] = return Nothing
+findM p (x:xs) = do
+    b <- p x
+    if b then return (Just x) else findM p xs
