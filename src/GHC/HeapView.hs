@@ -37,6 +37,7 @@ module GHC.HeapView (
     buildHeapGraph,
     multiBuildHeapGraph,
     addHeapGraph,
+    annotateHeapGraph,
     ppHeapGraph,
     -- * Boxes
     Box(..),
@@ -67,7 +68,7 @@ import Numeric          ( showHex )
 import Data.Char
 import Data.List
 import Data.Maybe       ( isJust, catMaybes )
-import Data.Tuple       ( swap )
+import Data.Monoid      ( Monoid, (<>), mempty )
 import System.Mem.Weak
 import Data.Functor
 import Data.Function
@@ -679,10 +680,18 @@ ppClosure showBox prec c = case c of
     braceize [] = ""
     braceize xs = "{" ++ intercalate "," xs ++ "}"
     
--- $heapmap
--- For more global views of the heap, you can use heap maps. These come in
--- variations, either a trees or as graphs, depending on
--- whether you want to detect cycles and sharing or not.
+{- $heapmap
+
+   For more global views of the heap, you can use heap maps. These come in
+   variations, either a trees or as graphs, depending on
+   whether you want to detect cycles and sharing or not.
+
+   The entries of a 'HeapGraph' can be annotated with arbitrary values. Most
+   operations expect this to be in the 'Monoid' class: They use 'mempty' to
+   annotate closures added because the passed values reference them, and they
+   use 'mappend' to combine the annotations when two values conincide, e.g. 
+   during 'updateHeapGraph'.
+-}
 
 -- | Heap maps as tree, i.e. no sharing, no cycles.
 data HeapTree = HeapTree WeakBox (GenClosure HeapTree) | EndOfHeapTree
@@ -768,13 +777,13 @@ heapGraphRoot = 0
 -- | Creates a 'HeapGraph' for the value in the box, but not recursing further
 -- than the given limit. The initial value has index 'heapGraphRoot'.
 buildHeapGraph
-   :: Int -- ^ Search limit
-   -> a -- ^ Default data value to be used for values other than the initial one
+   :: Monoid a
+   => Int -- ^ Search limit
    -> a -- ^ Data value for the root
    -> Box -- ^ The value to start with
    -> IO (HeapGraph a)
-buildHeapGraph limit defD rootD initialBox =
-    fst <$> generalBuildHeapGraph limit defD [] [0..] [(rootD,initialBox)]
+buildHeapGraph limit rootD initialBox =
+    fst <$> multiBuildHeapGraph limit [(rootD, initialBox)]
 
 -- | Creates a 'HeapGraph' for the values in multiple boxes, but not recursing
 --   further than the given limit.
@@ -783,51 +792,67 @@ buildHeapGraph limit defD rootD initialBox =
 --   type @a@ can be used to make the connection between the input and the
 --   resulting list of indices, and to store additional data.
 multiBuildHeapGraph
-    :: Int -- ^ Search limit
-    -> a -- ^ Default data to be used
-    -> [(a, Box)] -- ^ Starting values with associate data entry
+    :: Monoid a
+    => Int -- ^ Search limit
+    -> [(a, Box)] -- ^ Starting values with associated data entry
     -> IO (HeapGraph a, [(a, HeapGraphIndex)])
-multiBuildHeapGraph limit defD = generalBuildHeapGraph limit defD [] [0..]
+multiBuildHeapGraph limit = generalBuildHeapGraph limit (HeapGraph M.empty)
 
 -- | Adds an entry to an existing 'HeapGraph'.
 --
 --   Returns the updated 'HeapGraph' and the index of the added value.
 addHeapGraph
-    :: Int -- ^ Search limit
-    -> a -- ^ Default data to be used
-    -> HeapGraph a -- ^ graph to extend
+    :: Monoid a 
+    => Int -- ^ Search limit
     -> a -- ^ Data to be stored with the added value
     -> Box -- ^ Value to add to the graph
+    -> HeapGraph a -- ^ Graph to extend
     -> IO (HeapGraphIndex, HeapGraph a)
-addHeapGraph limit defD (HeapGraph hg) rootD initialBox = do
-    newStart <- foldM toStartList [] $ M.toList hg
-    let newIndex = 1 + (maximum $ map snd newStart)
-    (HeapGraph newHG, _) <- generalBuildHeapGraph limit defD newStart [newIndex..] [(rootD,initialBox)]
-    return $ (newIndex, HeapGraph $ M.union hg newHG)
-  where toStartList xs (i, hge) = do
-            derefWeakBox (hgeBox hge) >>= \mbB -> return $ case mbB of
-              Nothing -> xs
-              Just b  -> (b,i):xs
+addHeapGraph limit d box hg = do
+    (hg', [(_,i)]) <- generalBuildHeapGraph limit hg [(d,box)]
+    return (i, hg')
 
-generalBuildHeapGraph
-    :: Int
-    -> a
-    -> [(Box, HeapGraphIndex)]
-    -> [HeapGraphIndex]
+-- | Adds the given annotation to the entry at the given index, using the
+-- 'mappend' operation of its 'Monoid' instance.
+annotateHeapGraph :: Monoid a => a -> HeapGraphIndex -> HeapGraph a -> HeapGraph a
+annotateHeapGraph d i (HeapGraph hg) = HeapGraph $ M.update go i hg
+  where
+    go hge = Just $ hge { hgeData = hgeData hge <> d }
+
+generalBuildHeapGraph 
+    :: Monoid a
+    => Int
+    -> HeapGraph a
     -> [(a,Box)]
     -> IO (HeapGraph a, [(a, HeapGraphIndex)])
-generalBuildHeapGraph limit _ _ _ _ | limit <= 0 = error "buildHeapGraph: limit has to be positive"
-generalBuildHeapGraph limit defD knownEntries newIndices initialBoxes = do
-    let initialState = (knownEntries, newIndices, [])
-    (is, hg) <- runWriterT (evalStateT run initialState)
-    return (HeapGraph hg, is)
+generalBuildHeapGraph limit _ _ | limit <= 0 = error "buildHeapGraph: limit has to be positive"
+generalBuildHeapGraph limit (HeapGraph hg) addBoxes = do
+    -- First collect all live boxes from the existing heap graph
+    boxList <- catMaybes <$> do
+        forM (M.toList hg) $ \(i, hge) -> do
+           mbBox <- derefWeakBox (hgeBox hge)
+           return $ (\b -> (b,i)) <$> mbBox
+        
+    let indices | M.null hg = [0..]
+                | otherwise = [1 + fst (M.findMax hg)..]
+        
+        initialState = (boxList, indices, [])
+    -- It is ok to use the Monoid (IntMap a) instance here, because
+    -- we will, besides the first time, use 'tell' only to add singletons not
+    -- already there
+    (is, hg') <- runWriterT (evalStateT run initialState)
+    -- Now add the annotations of the root values
+    let hg'' = foldr (uncurry annotateHeapGraph) (HeapGraph hg') is
+    return (hg'', is)
   where
     run = do
-        _ <- mapM (add limit) $ map snd initialBoxes
-        (_,_,is) <- get
-        return is
+        lift $ tell hg -- Start with the initial map
+        forM addBoxes $ \(d, b) -> do
+            -- Cannot fail, as limit is not zero here
+            Just i <- add limit b
+            return (d, i)
 
-    add 0 _ = return Nothing
+    add 0  _ = return Nothing
     add n b = do
         -- If the box is in the map, return the index
         (existing,_,_) <- get
@@ -843,20 +868,15 @@ generalBuildHeapGraph limit defD knownEntries newIndices initialBoxes = do
                 c' <- T.mapM (add (n-1)) c
                 w <- liftIO $ weakBox b
                 -- Add add the resulting closure to the map
-                lift $ tell (M.singleton i (HeapGraphEntry w c' True defD)) -- TODO
-                case initialLookup b of
-                  Nothing  -> return ()
-                  Just val -> modify (\(x,y,z) -> (x,y,(val,i):z))
+                lift $ tell (M.singleton i (HeapGraphEntry w c' True mempty))
                 return $ Just i
     nextI = do
         i <- gets (head . (\(_,b,_) -> b))
         modify (\(a,b,c) -> (a, tail b, c))
         return i
 
-    initialLookup b = lookup b $ map swap initialBoxes
-
 -- | Pretty-prints a HeapGraph. The resulting string contains newlines. Example
--- for @let s = "Ki" in (s, s, cycle "Ho")@:
+-- for @let s = \"Ki\" in (s, s, cycle \"Ho\")@:
 --
 -- >let x1 = "Ki"
 -- >    x6 = C# 'H' : C# 'o' : x6
