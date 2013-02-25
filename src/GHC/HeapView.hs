@@ -1,4 +1,4 @@
-{-# LANGUAGE MagicHash, UnboxedTuples, CPP, ForeignFunctionInterface, GHCForeignImportPrim, UnliftedFFITypes, BangPatterns, RecordWildCards, DeriveFunctor, DeriveFoldable, DeriveTraversable, PatternGuards, RecursiveDo #-}
+{-# LANGUAGE MagicHash, UnboxedTuples, CPP, ForeignFunctionInterface, GHCForeignImportPrim, UnliftedFFITypes, BangPatterns, RecordWildCards, DeriveFunctor, DeriveFoldable, DeriveTraversable, PatternGuards #-}
 {-|
 Module      :  GHC.HeapView
 Copyright   :  (c) 2012 Joachim Breitner
@@ -43,13 +43,6 @@ module GHC.HeapView (
     -- * Boxes
     Box(..),
     asBox,
-    -- * Weak boxes
-    WeakBox,
-    weakBox,
-    isAlive,
-    derefWeakBox,
-    WeakClosure,
-    weakenClosure,
     )
     where
 
@@ -62,15 +55,12 @@ import GHC.Arr          (Array(..))
 
 import GHC.Constants    ( wORD_SIZE, tAG_MASK, wORD_SIZE_IN_BITS )
 
-import System.IO.Unsafe ( unsafePerformIO )
-
 import Foreign          hiding ( unsafePerformIO )
 import Numeric          ( showHex )
 import Data.Char
 import Data.List
-import Data.Maybe       ( isJust, catMaybes )
+import Data.Maybe       ( catMaybes )
 import Data.Monoid      ( Monoid, (<>), mempty )
-import System.Mem.Weak
 import Data.Functor
 import Data.Function
 import Data.Foldable    ( Foldable )
@@ -276,8 +266,7 @@ data ClosureType =
   <http://hackage.haskell.org/trac/ghc/browser/includes/rts/storage/Closures.h>
 
   The data type is parametrized by the type to store references in, which
-  should be either 'Box' or 'WeakBox', with appropriate type synonyms 'Closure'
-  and 'WeakClosure'.
+  is usually a 'Box' with appropriate type synonym 'Closure'.
  -}
 data GenClosure b =
     ConsClosure {
@@ -695,7 +684,7 @@ ppClosure showBox prec c = case c of
 -}
 
 -- | Heap maps as tree, i.e. no sharing, no cycles.
-data HeapTree = HeapTree WeakBox (GenClosure HeapTree) | EndOfHeapTree
+data HeapTree = HeapTree Box (GenClosure HeapTree) | EndOfHeapTree
 
 heapTreeClosure :: HeapTree -> Maybe (GenClosure HeapTree)
 heapTreeClosure (HeapTree _ c) = Just c
@@ -708,10 +697,9 @@ buildHeapTree :: Int -> Box -> IO HeapTree
 buildHeapTree 0 _ = do
     return $ EndOfHeapTree
 buildHeapTree n b = do
-    w <- weakBox b
     c <- getBoxedClosureData b
     c' <- T.mapM (buildHeapTree (n-1)) c
-    return $ HeapTree w c'
+    return $ HeapTree b c'
 
 -- | Pretty-Printing a heap Tree
 -- 
@@ -752,11 +740,11 @@ isHeapTreeString t = do
 -- @Nothing@, then we do not have that value in the map, most likely due to
 -- exceeding the recursion bound passed to 'buildHeapGraph'.
 --
--- Besides a weak pointer to the stored value and the closure representation we
+-- Besides a pointer to the stored value and the closure representation we
 -- also keep track of whether the value was still alive at the last update of the 
 -- heap graph. In addition we have a slot for arbitrary data, for the user's convenience.
 data HeapGraphEntry a = HeapGraphEntry {
-        hgeBox :: WeakBox,
+        hgeBox :: Box,
         hgeClosure :: GenClosure (Maybe HeapGraphIndex),
         hgeLive :: Bool,
         hgeData :: a}
@@ -828,13 +816,9 @@ generalBuildHeapGraph
     -> IO (HeapGraph a, [(a, HeapGraphIndex)])
 generalBuildHeapGraph limit _ _ | limit <= 0 = error "buildHeapGraph: limit has to be positive"
 generalBuildHeapGraph limit (HeapGraph hg) addBoxes = do
-    -- First collect all live boxes from the existing heap graph
-    boxList <- catMaybes <$> do
-        forM (M.toList hg) $ \(i, hge) -> do
-           mbBox <- derefWeakBox (hgeBox hge)
-           return $ (\b -> (b,i)) <$> mbBox
-        
-    let indices | M.null hg = [0..]
+    -- First collect all boxes from the existing heap graph
+    let boxList = [ (hgeBox hge, i) | (i, hge) <- M.toList hg ]
+        indices | M.null hg = [0..]
                 | otherwise = [1 + fst (M.findMax hg)..]
         
         initialState = (boxList, indices, [])
@@ -864,12 +848,12 @@ generalBuildHeapGraph limit (HeapGraph hg) addBoxes = do
                 i <- nextI
                 -- And register it
                 modify (\(x,y,z) -> ((b,i):x, y, z))
+                -- Look up the closure
                 c <- liftIO $ getBoxedClosureData b
                 -- Find indicies for all boxes contained in the map
                 c' <- T.mapM (add (n-1)) c
-                w <- liftIO $ weakBox b
                 -- Add add the resulting closure to the map
-                lift $ tell (M.singleton i (HeapGraphEntry w c' True mempty))
+                lift $ tell (M.singleton i (HeapGraphEntry b c' True mempty))
                 return $ Just i
     nextI = do
         i <- gets (head . (\(_,b,_) -> b))
@@ -886,34 +870,15 @@ generalBuildHeapGraph limit (HeapGraph hg) addBoxes = do
 --  * A map mapping previous indicies to the corresponding new indicies is returned as well.
 --  * The closure at 'heapGraphRoot' stays at 'heapGraphRoot'
 updateHeapGraph :: Monoid a => Int -> HeapGraph a -> IO (HeapGraph a, HeapGraphIndex -> HeapGraphIndex)
-updateHeapGraph limit (HeapGraph startHG) = mdo -- recursive do!
-    (hg', indexMap) <- runWriterT $ foldM (go indexFunction) (HeapGraph M.empty) (M.toList startHG)
-    let indexFunction = (M.!) indexMap
-    return (hg', indexFunction)
+updateHeapGraph limit (HeapGraph startHG) = do
+    (hg', indexMap) <- runWriterT $ foldM go (HeapGraph M.empty) (M.toList startHG)
+    return (hg', (M.!) indexMap)
   where
-    --go :: (HeapGraphIndex -> HeapGraphIndex) ->
-    --      HeapGraph a -> (HeapGraphIndex, HeapGraphEntry a) -> IO (HeapGraph a)
-    go i2j hg (i, hge) = do
-        mbBox <- liftIO $ derefWeakBox (hgeBox hge)
-        (j, hg') <- case mbBox of 
-            -- The entry is still live, add it to the heap, remembering the
-            -- data but throwing away the prevoius closure
-            Just b -> liftIO $ addHeapGraph limit (hgeData hge) b hg
-            -- The entry is dead, so mark it as such. We also need to update
-            -- theead indices; we use lazyness here.
-            Nothing -> return $ addHeapGraphEntry (hge {
-                        hgeLive = False,
-                        hgeClosure = fmap (fmap i2j) (hgeClosure hge)
-                        }) hg
+    go hg (i, hge) = do
+        (j, hg') <- liftIO $ addHeapGraph limit (hgeData hge) (hgeBox hge) hg
         tell (M.singleton i j)
         return hg'
                 
-addHeapGraphEntry :: HeapGraphEntry a -> HeapGraph a -> (HeapGraphIndex, HeapGraph a)
-addHeapGraphEntry hge (HeapGraph hg) = 
-    let index | M.null hg = 0
-              | otherwise = 1 + fst (M.findMax hg)
-    in (index, HeapGraph (M.insert index hge hg))
-
 -- | Pretty-prints a HeapGraph. The resulting string contains newlines. Example
 -- for @let s = \"Ki\" in (s, s, cycle \"Ho\")@:
 --
@@ -989,38 +954,3 @@ boundMultipleTimes :: HeapGraph a -> [HeapGraphIndex] -> [HeapGraphIndex]
 boundMultipleTimes (HeapGraph m) roots = map head $ filter (not.null) $ map tail $ group $ sort $
      roots ++ concatMap (catMaybes . allPtrs . hgeClosure) (M.elems m)
 
--- | An a variant of 'Box' that does not keep the value alive.
--- 
--- Like 'Box', its 'Show' instance is highly unsafe.
-newtype WeakBox = WeakBox (Weak Box)
-
-
-type WeakClosure = GenClosure WeakBox
-
-instance Show WeakBox where
-    showsPrec p (WeakBox w) rs = case unsafePerformIO (deRefWeak w) of
-        Nothing -> let txt = "(freed)" in
-                   replicate (2*wORD_SIZE - length txt) ' ' ++ txt ++ rs
-        Just b -> showsPrec p b rs
-
-{-|
-  Turns a 'Box' into a 'WeakBox', allowing the referenced value to be garbage
-  collected.
--}
-weakBox :: Box -> IO WeakBox
-weakBox b@(Box a) = WeakBox `fmap` mkWeak a b Nothing
-
-{-|
-  Checks whether the value referenced by a weak box is still alive
--}
-isAlive :: WeakBox -> IO Bool
-isAlive (WeakBox w) = isJust `fmap` deRefWeak w
-
-{-|
-  Dereferences the weak box
--}
-derefWeakBox :: WeakBox -> IO (Maybe Box)
-derefWeakBox (WeakBox w) = deRefWeak w
-
-weakenClosure :: Closure -> IO WeakClosure
-weakenClosure = T.mapM weakBox
