@@ -54,6 +54,7 @@ Flag prim-supports-any
     Default: False
 
 Library
+  Default-Language:    Haskell2010
   Exposed-modules:
     GHC.HeapView 
     GHC.AssertNF 

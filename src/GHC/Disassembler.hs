@@ -1,4 +1,4 @@
-{-# LANGUAGE CPP, ScopedTypeVariables, DoAndIfThenElse #-}
+{-# LANGUAGE CPP, ScopedTypeVariables, DoAndIfThenElse, NondecreasingIndentation #-}
 -- | A disassembler for ByteCode objects as used by GHCi.
 module GHC.Disassembler (
     toBytes,
