@@ -100,8 +100,8 @@ assertNF' str x = do
     when en $ do 
         depths <- assertNFBoxed 0 (asBox x)
         unless (null depths) $ do
-            g <- buildHeapGraph (maximum depths + 3) (asBox x)
-                -- +3 for good mesure; application don't look good otherwise
+            g <- buildHeapGraph (maximum depths + 3) () () (asBox x)
+                -- +3 for good mesure; applications don't look good otherwise
             traceIO $ str ++ ": " ++ show (length depths) ++ " thunks found:\n" ++
                 ppHeapGraph g
 

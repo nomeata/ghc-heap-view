@@ -741,17 +741,25 @@ isHeapTreeString t = do
 -- cyclic structures, these are the entries. If the referenced value is
 -- @Nothing@, then we do not have that value in the map, most likely due to
 -- exceeding the recursion bound passed to 'buildHeapGraph'.
-data HeapGraphEntry = HeapGraphEntry WeakBox (GenClosure (Maybe HeapGraphIndex))
-    deriving (Show)
+--
+-- Besides a weak pointer to the stored value and the closure representation we
+-- also keep track of whether the value was still alive at the last update of the 
+-- heap graph. In addition we have a slot for arbitrary data, for the user's convenience.
+data HeapGraphEntry a = HeapGraphEntry {
+        hgeBox :: WeakBox,
+        hgeClosure :: GenClosure (Maybe HeapGraphIndex),
+        hgeLive :: Bool,
+        hgeData :: a}
+    deriving (Show, Functor)
 type HeapGraphIndex = Int
 
 -- | The whole graph. The suggested interface is to only use 'lookupHeapGraph',
 -- as the internal representation may change. Nevertheless, we export it here:
 -- Sometimes the user knows better what he needs than we do.
-newtype HeapGraph = HeapGraph (M.IntMap HeapGraphEntry)
+newtype HeapGraph a = HeapGraph (M.IntMap (HeapGraphEntry a))
     deriving (Show)
 
-lookupHeapGraph :: HeapGraphIndex -> HeapGraph -> Maybe HeapGraphEntry
+lookupHeapGraph :: HeapGraphIndex -> (HeapGraph a) -> Maybe (HeapGraphEntry a)
 lookupHeapGraph i (HeapGraph m) = M.lookup i m
 
 heapGraphRoot :: HeapGraphIndex
@@ -759,35 +767,57 @@ heapGraphRoot = 0
 
 -- | Creates a 'HeapGraph' for the value in the box, but not recursing further
 -- than the given limit. The initial value has index 'heapGraphRoot'.
-buildHeapGraph :: Int -> Box -> IO HeapGraph
-buildHeapGraph limit initialBox = fst <$> generalBuildHeapGraph [] [0..] limit [((),initialBox)]
+buildHeapGraph
+   :: Int -- ^ Search limit
+   -> a -- ^ Default data value to be used for values other than the initial one
+   -> a -- ^ Data value for the root
+   -> Box -- ^ The value to start with
+   -> IO (HeapGraph a)
+buildHeapGraph limit defD rootD initialBox =
+    fst <$> generalBuildHeapGraph limit defD [] [0..] [(rootD,initialBox)]
 
 -- | Creates a 'HeapGraph' for the values in multiple boxes, but not recursing
 --   further than the given limit.
 --
 --   Returns the 'HeapGraph' and the indices of initial values. The arbitrary
 --   type @a@ can be used to make the connection between the input and the
---   resulting list of indices.
-multiBuildHeapGraph :: Int -> [(a, Box)] -> IO (HeapGraph, [(a, HeapGraphIndex)])
-multiBuildHeapGraph = generalBuildHeapGraph [] [0..]
+--   resulting list of indices, and to store additional data.
+multiBuildHeapGraph
+    :: Int -- ^ Search limit
+    -> a -- ^ Default data to be used
+    -> [(a, Box)] -- ^ Starting values with associate data entry
+    -> IO (HeapGraph a, [(a, HeapGraphIndex)])
+multiBuildHeapGraph limit defD = generalBuildHeapGraph limit defD [] [0..]
 
 -- | Adds an entry to an existing 'HeapGraph'.
 --
 --   Returns the updated 'HeapGraph' and the index of the added value.
-addHeapGraph :: HeapGraph -> Int -> Box -> IO (HeapGraphIndex, HeapGraph)
-addHeapGraph (HeapGraph hg) limit initialBox = do
+addHeapGraph
+    :: Int -- ^ Search limit
+    -> a -- ^ Default data to be used
+    -> HeapGraph a -- ^ graph to extend
+    -> a -- ^ Data to be stored with the added value
+    -> Box -- ^ Value to add to the graph
+    -> IO (HeapGraphIndex, HeapGraph a)
+addHeapGraph limit defD (HeapGraph hg) rootD initialBox = do
     newStart <- foldM toStartList [] $ M.toList hg
     let newIndex = 1 + (maximum $ map snd newStart)
-    (HeapGraph newHG, _) <- generalBuildHeapGraph newStart [newIndex..] limit [((),initialBox)]
+    (HeapGraph newHG, _) <- generalBuildHeapGraph limit defD newStart [newIndex..] [(rootD,initialBox)]
     return $ (newIndex, HeapGraph $ M.union hg newHG)
-  where toStartList xs (i, HeapGraphEntry wb _) = do
-            derefWeakBox wb >>= \mbB -> return $ case mbB of
+  where toStartList xs (i, hge) = do
+            derefWeakBox (hgeBox hge) >>= \mbB -> return $ case mbB of
               Nothing -> xs
               Just b  -> (b,i):xs
 
-generalBuildHeapGraph :: [(Box, HeapGraphIndex)] -> [HeapGraphIndex] -> Int -> [(a,Box)] -> IO (HeapGraph, [(a, HeapGraphIndex)])
-generalBuildHeapGraph _ _ limit _ | limit <= 0 = error "buildHeapGraph: limit has to be positive"
-generalBuildHeapGraph knownEntries newIndices limit initialBoxes = do
+generalBuildHeapGraph
+    :: Int
+    -> a
+    -> [(Box, HeapGraphIndex)]
+    -> [HeapGraphIndex]
+    -> [(a,Box)]
+    -> IO (HeapGraph a, [(a, HeapGraphIndex)])
+generalBuildHeapGraph limit _ _ _ _ | limit <= 0 = error "buildHeapGraph: limit has to be positive"
+generalBuildHeapGraph limit defD knownEntries newIndices initialBoxes = do
     let initialState = (knownEntries, newIndices, [])
     (is, hg) <- runWriterT (evalStateT run initialState)
     return (HeapGraph hg, is)
@@ -813,7 +843,7 @@ generalBuildHeapGraph knownEntries newIndices limit initialBoxes = do
                 c' <- T.mapM (add (n-1)) c
                 w <- liftIO $ weakBox b
                 -- Add add the resulting closure to the map
-                lift $ tell (M.singleton i (HeapGraphEntry w c'))
+                lift $ tell (M.singleton i (HeapGraphEntry w c' True defD)) -- TODO
                 case initialLookup b of
                   Nothing  -> return ()
                   Just val -> modify (\(x,y,z) -> (x,y,(val,i):z))
@@ -831,7 +861,7 @@ generalBuildHeapGraph knownEntries newIndices limit initialBoxes = do
 -- >let x1 = "Ki"
 -- >    x6 = C# 'H' : C# 'o' : x6
 -- >in (x1,x1,x6)
-ppHeapGraph :: HeapGraph -> String
+ppHeapGraph :: HeapGraph a -> String
 ppHeapGraph (HeapGraph m) = letWrapper ++ ppRef 0 (Just heapGraphRoot)
   where
     -- All variables occuring more than once
@@ -842,15 +872,14 @@ ppHeapGraph (HeapGraph m) = letWrapper ++ ppRef 0 (Just heapGraphRoot)
         then ""
         else "let " ++ intercalate "\n    " (map ppBinding bindings) ++ "\nin "
 
-    bindingLetter i = case iToE i of
-        HeapGraphEntry _ c -> case c of 
-            ThunkClosure {..} -> 't'
-            SelectorClosure {..} -> 't'
-            APClosure {..} -> 't'
-            PAPClosure {..} -> 'f'
-            BCOClosure {..} -> 't'
-            FunClosure {..} -> 'f'
-            _ -> 'x'
+    bindingLetter i = case hgeClosure (iToE i) of
+        ThunkClosure {..} -> 't'
+        SelectorClosure {..} -> 't'
+        APClosure {..} -> 't'
+        PAPClosure {..} -> 'f'
+        BCOClosure {..} -> 't'
+        FunClosure {..} -> 'f'
+        _ -> 'x'
 
     ppBindingMap = M.fromList $
         concat $
@@ -862,10 +891,10 @@ ppHeapGraph (HeapGraph m) = letWrapper ++ ppRef 0 (Just heapGraphRoot)
     ppVar i = ppBindingMap M.! i
     ppBinding i = ppVar i ++ " = " ++ ppEntry 0 (iToE i)
 
-    ppEntry prec e@(HeapGraphEntry _ c)
-        | Just s <- isString e = show s
-        | Just l <- isList e = "[" ++ intercalate "," (map (ppRef 0) l) ++ "]"
-        | otherwise = ppClosure ppRef prec c
+    ppEntry prec hge
+        | Just s <- isString hge = show s
+        | Just l <- isList hge   = "[" ++ intercalate "," (map (ppRef 0) l) ++ "]"
+        | otherwise = ppClosure ppRef prec (hgeClosure hge)
 
     ppRef _ Nothing = "..."
     ppRef prec (Just i) | i `elem` bindings = ppVar i
@@ -874,32 +903,32 @@ ppHeapGraph (HeapGraph m) = letWrapper ++ ppRef 0 (Just heapGraphRoot)
 
     iToUnboundE i = if i `elem` bindings then Nothing else M.lookup i m
 
-    isList :: HeapGraphEntry -> Maybe ([Maybe HeapGraphIndex])
-    isList (HeapGraphEntry _ c) = 
-        if isNil c
+    isList :: HeapGraphEntry a -> Maybe ([Maybe HeapGraphIndex])
+    isList hge = 
+        if isNil (hgeClosure hge)
           then return []
           else do
-            (h,t) <- isCons c
+            (h,t) <- isCons (hgeClosure hge)
             ti <- t
             e <- iToUnboundE ti
             t' <- isList e
             return $ (:) h t'
 
-    isString :: HeapGraphEntry -> Maybe String
+    isString :: HeapGraphEntry a -> Maybe String
     isString e = do
         list <- isList e
         -- We do not want to print empty lists as "" as we do not know that they
         -- are really strings.
         if (null list)
             then Nothing
-            else mapM (isChar . (\(HeapGraphEntry _ c) -> c) <=< iToUnboundE <=< id) list
+            else mapM (isChar . hgeClosure <=< iToUnboundE <=< id) list
 
 
 -- | In the given HeapMap, list all indices that are used more than once. The
 -- second parameter adds external references, commonly @[heapGraphRoot]@.
-boundMultipleTimes :: HeapGraph -> [HeapGraphIndex] -> [HeapGraphIndex]
+boundMultipleTimes :: HeapGraph a -> [HeapGraphIndex] -> [HeapGraphIndex]
 boundMultipleTimes (HeapGraph m) roots = map head $ filter (not.null) $ map tail $ group $ sort $
-     roots ++ concatMap (\(HeapGraphEntry _ c) -> catMaybes (allPtrs c)) (M.elems m)
+     roots ++ concatMap (catMaybes . allPtrs . hgeClosure) (M.elems m)
 
 -- | An a variant of 'Box' that does not keep the value alive.
 -- 
