@@ -1,5 +1,5 @@
 Name:                ghc-heap-view
-Version:             0.4.2.0
+Version:             0.5
 Synopsis:            Extract the heap representation of Haskell values and thunks
 Description:
   This library provides functions to introspect the Haskell heap, for example
