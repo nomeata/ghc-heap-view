@@ -831,7 +831,7 @@ generalBuildHeapGraph limit (HeapGraph hg) addBoxes = do
     -- already there
     (is, hg') <- runWriterT (evalStateT run initialState)
     -- Now add the annotations of the root values
-    let hg'' = foldr (uncurry annotateHeapGraph) (HeapGraph hg') is
+    let hg'' = foldl' (flip (uncurry annotateHeapGraph)) (HeapGraph hg') is
     return (hg'', is)
   where
     run = do
