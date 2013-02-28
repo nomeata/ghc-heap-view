@@ -101,7 +101,7 @@ instance Show Box where
        pad_out ls = 
           '0':'x':(replicate (2*wORD_SIZE - length ls) '0') ++ ls
 
--- | Boxes can be compared, but this is not pure, as different heap objects an,
+-- | Boxes can be compared, but this is not pure, as different heap objects can,
 -- after garbage collection, become the same object.
 areBoxesEqual :: Box -> Box -> IO Bool
 areBoxesEqual (Box a) (Box b) = case reallyUnsafePtrEqualityUpToTag# a b of
