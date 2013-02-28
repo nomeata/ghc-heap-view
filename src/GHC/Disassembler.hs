@@ -27,11 +27,7 @@ toBytes n =
     BS.take (fromIntegral n) .
     toLazyByteString .
     mconcat .
-#if SIZEOF_VOID_P == 8
-    map (word64Host . fromIntegral)
-#else
-    map (word32Host . fromIntegral)
-#endif
+    map (wordHost . fromIntegral)
 
 -- | Given a list of pointers, a list of literals and a ByteString containing
 -- byte code instructions, disassembles them into a list of byte code instructions.
