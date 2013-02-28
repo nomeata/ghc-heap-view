@@ -1,4 +1,4 @@
-{-# LANGUAGE CPP, ScopedTypeVariables, DoAndIfThenElse, NondecreasingIndentation #-}
+{-# LANGUAGE CPP, ScopedTypeVariables, DoAndIfThenElse, NondecreasingIndentation, DeriveFunctor, DeriveFoldable, DeriveTraversable #-}
 -- | A disassembler for ByteCode objects as used by GHCi.
 module GHC.Disassembler (
     toBytes,
@@ -15,6 +15,8 @@ import Data.Int
 import Data.Monoid
 import Data.Bits
 import Data.Functor
+import Data.Foldable    ( Foldable )
+import Data.Traversable ( Traversable )
 
 #include "ghcautoconf.h"
 #include "rts/Bytecodes.h"
@@ -297,7 +299,7 @@ data BCI box
     | BCIBRK_FUN -- ^ We do not parse this opcode's arguments
     | BCITESTLT_W Word Int
     | BCITESTEQ_W Word Int
-    deriving (Show)
+    deriving (Show, Functor, Traversable, Foldable)
 
 getInthost :: Get Int
 getInthost = fromIntegral <$> getWordhost
