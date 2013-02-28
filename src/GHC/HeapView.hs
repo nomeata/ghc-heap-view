@@ -43,6 +43,7 @@ module GHC.HeapView (
     -- * Boxes
     Box(..),
     asBox,
+    areBoxesEqual,
     )
     where
 
