@@ -44,6 +44,8 @@ module GHC.HeapView (
     Box(..),
     asBox,
     areBoxesEqual,
+    -- * Disassembler
+    disassembleBCO,
     )
     where
 
@@ -65,6 +67,7 @@ import Data.Monoid      ( Monoid, (<>), mempty )
 import Data.Functor
 import Data.Function
 import Data.Foldable    ( Foldable )
+import qualified Data.Foldable as F
 import Data.Traversable ( Traversable )
 import qualified Data.Traversable as T
 import qualified Data.IntMap as M
@@ -73,6 +76,8 @@ import Control.Monad.Trans.State
 import Control.Monad.Trans.Class
 import Control.Monad.IO.Class
 import Control.Monad.Trans.Writer.Strict
+
+import GHC.Disassembler
 
 #include "ghcautoconf.h"
 
@@ -666,13 +671,8 @@ ppClosure showBox prec c = case c of
     UnsupportedClosure {..} ->
         "_unsupported"
   where
-    addBraces True t = "(" ++ t ++ ")"
-    addBraces False t = t
-    app [] = "()"
-    app [a] = a 
+    app [a] = a  ++ "()"
     app xs = addBraces (10 <= prec) (intercalate " " xs)
-    braceize [] = ""
-    braceize xs = "{" ++ intercalate "," xs ++ "}"
     
 {- $heapmap
 
@@ -718,7 +718,12 @@ ppHeapTree = go 0
     go prec t@(HeapTree _ c')
         | Just s <- isHeapTreeString t = show s
         | Just l <- isHeapTreeList t   = "[" ++ intercalate "," (map ppHeapTree l) ++ "]"
-        | otherwise                    =  ppClosure go prec c'
+        | Just bc <- disassembleBCO heapTreeClosure c'
+                                       = app ("_bco" : map (go 10) (concatMap F.toList bc))
+        | otherwise                    = ppClosure go prec c'
+      where 
+        app [a] = a ++ "()"
+        app xs = addBraces (10 <= prec) (intercalate " " xs)
 
 isHeapTreeList :: HeapTree -> Maybe ([HeapTree])
 isHeapTreeList tree = do
@@ -923,7 +928,12 @@ ppHeapGraph (HeapGraph m) = letWrapper ++ ppRef 0 (Just heapGraphRoot)
     ppEntry prec hge
         | Just s <- isString hge = show s
         | Just l <- isList hge   = "[" ++ intercalate "," (map (ppRef 0) l) ++ "]"
+        | Just bc <- disassembleBCO (fmap (hgeClosure . iToE)) (hgeClosure hge)
+                                       = app ("_bco" : map (ppRef 10) (concatMap F.toList bc))
         | otherwise = ppClosure ppRef prec (hgeClosure hge)
+      where
+        app [a] = a  ++ "()"
+        app xs = addBraces (10 <= prec) (intercalate " " xs)
 
     ppRef _ Nothing = "..."
     ppRef prec (Just i) | i `elem` bindings = ppVar i
@@ -959,9 +969,31 @@ boundMultipleTimes :: HeapGraph a -> [HeapGraphIndex] -> [HeapGraphIndex]
 boundMultipleTimes (HeapGraph m) roots = map head $ filter (not.null) $ map tail $ group $ sort $
      roots ++ concatMap (catMaybes . allPtrs . hgeClosure) (M.elems m)
 
+-- | This function integrates the disassembler in "GHC.Disassembler". The first
+-- argument should a function that dereferences the pointer in the closure to a
+-- closure.
+--
+-- If any of these return 'Nothing', then 'disassembleBCO' returns Nothing
+disassembleBCO :: (a -> Maybe (GenClosure b)) -> GenClosure a -> Maybe [BCI b]
+disassembleBCO deref (BCOClosure {..}) = do
+    opsC <- deref instrs
+    litsC <- deref literals
+    ptrsC  <- deref bcoptrs
+    return $ disassemble (mccPayload ptrsC) (arrWords litsC) (toBytes (bytes opsC) (arrWords opsC))
+disassembleBCO _ _ = Nothing
+
+-- Utilities
 
 findM :: (a -> IO Bool) -> [a] -> IO (Maybe a)
 findM _p [] = return Nothing
 findM p (x:xs) = do
     b <- p x
     if b then return (Just x) else findM p xs
+
+addBraces :: Bool -> String -> String
+addBraces True t = "(" ++ t ++ ")"
+addBraces False t = t
+
+braceize :: [String] -> String
+braceize [] = ""
+braceize xs = "{" ++ intercalate "," xs ++ "}"
