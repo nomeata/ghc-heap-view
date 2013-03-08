@@ -536,7 +536,9 @@ getClosureData x = do
     case tipe itbl of 
         t | t >= CONSTR && t <= CONSTR_NOCAF_STATIC -> do
             (pkg, modl, name) <- dataConInfoPtrToNames iptr
-            return $ ConsClosure itbl ptrs (drop (length ptrs + 1) wds) pkg modl name
+            if modl == "ByteCodeInstr" && name == "BreakInfo"
+              then return $ UnsupportedClosure itbl
+              else return $ ConsClosure itbl ptrs (drop (length ptrs + 1) wds) pkg modl name
 
         t | t >= THUNK && t <= THUNK_STATIC -> do
             return $ ThunkClosure itbl ptrs (drop (length ptrs + 2) wds)
