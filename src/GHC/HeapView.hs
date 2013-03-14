@@ -657,9 +657,9 @@ ppClosure showBox prec c = case c of
     BCOClosure {..} -> app
         ["_bco"]
     ArrWordsClosure {..} -> app
-        ["toArray", intercalate "," (map show arrWords) ]
-    MutArrClosure {..} -> app
-        ["toMutArray", intercalate "," (map (showBox 10) mccPayload)]
+        ["toArray", intercalate "," (shorten (map show arrWords)) ]
+    MutArrClosure {..} -> app 
+        ["toMutArray", intercalate "," (shorten (map (showBox 10) mccPayload))]
     MutVarClosure {..} -> app $
         ["_mutVar", (showBox 10) var]
     MVarClosure {..} -> app $
@@ -675,6 +675,8 @@ ppClosure showBox prec c = case c of
   where
     app [a] = a  ++ "()"
     app xs = addBraces (10 <= prec) (intercalate " " xs)
+
+    shorten xs = if length xs > 20 then take 20 xs ++ ["(and more)"] else xs
     
 {- $heapmap
 
