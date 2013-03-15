@@ -657,9 +657,9 @@ ppClosure showBox prec c = case c of
     BCOClosure {..} -> app
         ["_bco"]
     ArrWordsClosure {..} -> app
-        ["toArray", intercalate "," (shorten (map show arrWords)) ]
+        ["toArray", "("++show (length arrWords) ++ " words)", intercalate "," (shorten (map show arrWords)) ]
     MutArrClosure {..} -> app 
-        ["toMutArray", intercalate "," (shorten (map (showBox 10) mccPayload))]
+        ["toMutArray", "("++show (length mccPayload) ++ " ptrs)",  intercalate "," (shorten (map (showBox 10) mccPayload))]
     MutVarClosure {..} -> app $
         ["_mutVar", (showBox 10) var]
     MVarClosure {..} -> app $
