@@ -76,6 +76,7 @@ import Control.Monad.Trans.State
 import Control.Monad.Trans.Class
 import Control.Monad.IO.Class
 import Control.Monad.Trans.Writer.Strict
+import Control.Exception.Base (evaluate)
 
 import GHC.Disassembler
 
@@ -446,7 +447,11 @@ getClosureRaw x =
                 rawWords = [W# (indexWordArray# dat i) | I# i <- [0.. fromIntegral nelems -1] ]
                 pelems = I# (sizeofArray# ptrs) 
                 ptrList = amap' Box $ Array 0 (pelems - 1) pelems ptrs
-            ptrList `seq` rawWords `seq` return (Ptr iptr, rawWords, ptrList)
+            -- This is just for good measure, and seems to be not important.
+            mapM_ evaluate ptrList
+            -- The following deep evaluation is crucial to avoid crashes (but why)?
+            mapM_ evaluate rawWords
+            return (Ptr iptr, rawWords, ptrList)
 
 -- From compiler/ghci/RtClosureInspect.hs
 amap' :: (t -> b) -> Array Int t -> [b]

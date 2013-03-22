@@ -7,10 +7,10 @@ aToWordzh
     	RET_N(clos);
 }
 
+// Taken from stg_unpackClosurezh in rts/PrimOps.cmm
 slurpClosurezh
 {
 /* args: R1 = closure to analyze */
-// TODO: Consider the absence of ptrs or nonptrs as a special case ?
 
     W_ clos, len;
     clos = UNTAG(R1);
@@ -18,7 +18,7 @@ slurpClosurezh
     W_ info;
     info = %GET_STD_INFO(clos);
 
-    (len) = foreign "C" gtc_heap_view_closureSize(clos "ptr") [];
+    (len) = foreign "C" gtc_heap_view_closureSize(clos "ptr") [R1];
 
     W_ data_arr_sz;
     data_arr_sz = SIZEOF_StgArrWords  + WDS(len);
