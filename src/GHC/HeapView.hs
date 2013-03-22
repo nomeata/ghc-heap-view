@@ -58,7 +58,7 @@ import GHC.Arr          (Array(..))
 
 import GHC.Constants    ( wORD_SIZE, tAG_MASK, wORD_SIZE_IN_BITS )
 
-import Foreign          hiding ( unsafePerformIO )
+import Foreign          hiding ( unsafePerformIO, void )
 import Numeric          ( showHex )
 import Data.Char
 import Data.List
@@ -449,6 +449,8 @@ getClosureRaw x =
                 ptrList = amap' Box $ Array 0 (pelems - 1) pelems ptrs
             -- This is just for good measure, and seems to be not important.
             mapM_ evaluate ptrList
+            -- This seems to be required to avoid crashes as well
+            void $ evaluate nelems
             -- The following deep evaluation is crucial to avoid crashes (but why)?
             mapM_ evaluate rawWords
             return (Ptr iptr, rawWords, ptrList)
