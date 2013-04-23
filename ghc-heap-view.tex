@@ -1,0 +1,49 @@
+\documentclass[DIV16,twocolumn,10pt]{scrreprt}
+\usepackage{paralist}
+\usepackage{graphicx}
+\usepackage[final]{hcar}
+
+%include polycode.fmt
+
+\begin{document}
+
+\begin{hcarentry}{ghc-heap-view}
+\report{Joachim Breitner}
+\status{active development}
+\makeheader
+
+The library ghc-heap-view provides means to inspect the GHC's heap and analyze the actual layout of Haskell objects in memory. This allows you to investigate memory consumption, sharing and lazy evaluation.
+
+This means that the actual layout of Haskell objects in memory can be analyzed.
+You can investigate sharing as well as lazy evaluation using ghc-heap-view.
+
+The package also provides the GHCi command \texttt{:printHeap}, which is similar to the debuggers' \texttt{:print} command but is able to show more closures and their sharing behaviour:
+
+\begin{verbatim}
+> let x = cycle [True, False]
+> :printHeap x
+_bco
+> head x
+True
+> :printHeap x
+let x1 = True : _thunk x1 [False]
+in x1
+> take 3 x
+[True,False,True]
+> :printHeap x
+let x1 = True : False : x1
+in x1
+\end{verbatim}
+
+The graphical tool ghc-vis~\cref{ghc-vis} builds on ghc-heap-view.
+
+\FurtherReading
+  \begin{compactitem}
+    \item \url{http://www.joachim-breitner.de/blog/archives/548-ghc-heap-view-Complete-referential-opacity.html}
+    \item \url{http://www.joachim-breitner.de/blog/archives/580-GHCi-integration-for-GHC.HeapView.html}
+    \item \url{http://www.joachim-breitner.de/blog/archives/590-Evaluation-State-Assertions-in-Haskell.html}
+  \end{compactitem}
+\end{hcarentry}
+
+\end{document}
+
