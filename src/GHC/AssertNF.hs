@@ -20,6 +20,7 @@ module GHC.AssertNF (
     assertNFNamed,
     assertNFHere,
     disableAssertNF,
+    isNF,
     )
 where
 
@@ -121,3 +122,30 @@ assertNFBoxed !d b = do
 -- to 'assertNF' and its variants to noops.
 disableAssertNF :: IO ()
 disableAssertNF = writeIORef enabledRef False
+
+-- | A variant of 'assertNF' that does not print anything and just returns
+-- 'True' if the value is in normal form, or 'False' otherwise. This function
+-- is not affected by 'disableAssertNF'.
+isNF :: a -> IO Bool
+isNF x = isNFBoxed (asBox x)
+
+isNFBoxed :: Box -> IO Bool
+isNFBoxed b = do
+    c <- getBoxedClosureData b
+    nf <- isHNF c
+    if nf
+    then do
+        c' <- getBoxedClosureData b
+        allM isNFBoxed (allPtrs c')
+    else do
+        return False
+
+-- From Control.Monad.Loops in monad-loops, but I'd like to avoid too many
+-- trivial dependencies
+allM :: (Monad m) => (a -> m Bool) -> [a] -> m Bool
+allM _ []       = return True
+allM p (x:xs)   = do
+        q <- p x
+        if q
+                then allM p xs
+                else return False
