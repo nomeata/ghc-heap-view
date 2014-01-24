@@ -56,7 +56,6 @@ import GHC.Exts         ( Any,
 
 import GHC.Arr          (Array(..))
 
-import GHC.Constants    ( wORD_SIZE, tAG_MASK, wORD_SIZE_IN_BITS )
 
 import Foreign          hiding ( unsafePerformIO, void )
 import Numeric          ( showHex )
@@ -1008,3 +1007,11 @@ addBraces False t = t
 braceize :: [String] -> String
 braceize [] = ""
 braceize xs = "{" ++ intercalate "," xs ++ "}"
+
+-- This used to be available via GHC.Constants
+#include "MachDeps.h"
+wORD_SIZE, tAG_MASK, wORD_SIZE_IN_BITS :: Int
+wORD_SIZE = SIZEOF_HSWORD
+tAG_MASK = (1 `shift` TAG_BITS) - 1
+wORD_SIZE_IN_BITS = WORD_SIZE_IN_BITS
+

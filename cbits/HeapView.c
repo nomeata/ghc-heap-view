@@ -62,7 +62,10 @@ char *gtc_heap_view_closure_type_names[] = {
  [RET_BCO]               = "RET_BCO",
  [RET_SMALL]             = "RET_SMALL",
  [RET_BIG]               = "RET_BIG",
+#ifdef GHC_7_7
+#else
  [RET_DYN]               = "RET_DYN",
+#endif
  [RET_FUN]               = "RET_FUN",
  [UPDATE_FRAME]          = "UPDATE_FRAME",
  [CATCH_FRAME]           = "CATCH_FRAME",
