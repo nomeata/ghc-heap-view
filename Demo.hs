@@ -31,7 +31,6 @@ main = do
     putStrLn "> args <- map length `fmap` getArgs"
     putStrLn $ "gives us at " ++ show (asBox args) ++ " a static, but at compile time unknown list:"
     getClosureData args >>= printInd
-    getClosureData [] >>= printInd
     putStrLn $ "And now we have, at " ++ show (asBox x) ++ ", the concatenation of them, but unevaluated:"
     putStrLn "> let x = l ++ l2 ++ args"
     putStrLn "The thunk keeps a reference to l2 and args, but not l, as that is at a static address, unless you are running this in GHCi:"
@@ -59,7 +58,7 @@ main = do
     x `seq` return ()
     putStrLn $ "So it is unevaluated. Let us evaluate it using seq. Now we have, still at " ++ show (asBox x) ++ ":"
     getClosureData x >>= printInd
-    IndClosure {indirectee = target} <- getClosureData x
+    target <- indirectee `fmap` getClosureData x
     putStrLn $ "The thunk was replaced by an indirection. If we look at the target, " ++ show target ++ ", we see that it is a newly created cons-cell referencing the original location of x:"
     getBoxedClosureData target >>= printInd
     performGC
