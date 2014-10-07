@@ -552,29 +552,43 @@ getClosureData x = do
         t | t >= FUN && t <= FUN_STATIC -> do
             return $ FunClosure itbl ptrs (drop (length ptrs + 1) wds)
 
-        AP ->
+        AP -> do
+            unless (length ptrs >= 1) $
+                fail "Expected at least 1 ptr argument to AP"
             return $ APClosure itbl 
                 (fromIntegral $ wds !! 2)
                 (fromIntegral $ shiftR (wds !! 2) (wORD_SIZE_IN_BITS `div` 2))
                 (head ptrs) (tail ptrs)
 
-        PAP ->
+        PAP -> do
+            unless (length ptrs >= 1) $
+                fail "Expected at least 1 ptr argument to PAP"
             return $ PAPClosure itbl 
                 (fromIntegral $ wds !! 2)
                 (fromIntegral $ shiftR (wds !! 2) (wORD_SIZE_IN_BITS `div` 2))
                 (head ptrs) (tail ptrs)
 
-        AP_STACK ->
+        AP_STACK -> do
+            unless (length ptrs >= 1) $
+                fail "Expected at least 1 ptr argument to AP_STACK"
             return $ APStackClosure itbl (head ptrs) (tail ptrs)
 
-        THUNK_SELECTOR ->
+        THUNK_SELECTOR -> do
+            unless (length ptrs >= 1) $
+                fail "Expected at least 1 ptr argument to THUNK_SELECTOR"
             return $ SelectorClosure itbl (head ptrs)
 
-        IND ->
+        IND -> do
+            unless (length ptrs >= 1) $
+                fail "Expected at least 1 ptr argument to IND"
             return $ IndClosure itbl (head ptrs)
-        IND_STATIC ->
+        IND_STATIC -> do
+            unless (length ptrs >= 1) $
+                fail "Expected at least 1 ptr argument to IND_STATIC"
             return $ IndClosure itbl (head ptrs)
-        BLACKHOLE ->
+        BLACKHOLE -> do
+            unless (length ptrs >= 1) $
+                fail "Expected at least 1 ptr argument to BLACKHOLE"
             return $ BlackholeClosure itbl (head ptrs)
 
         BCO ->
