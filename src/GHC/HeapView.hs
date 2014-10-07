@@ -241,7 +241,9 @@ data ClosureType =
 	| RET_BCO
 	| RET_SMALL
 	| RET_BIG
+#ifndef GHC_7_7
 	| RET_DYN
+#endif
 	| RET_FUN
 	| UPDATE_FRAME
 	| CATCH_FRAME
@@ -251,6 +253,9 @@ data ClosureType =
 	| BLACKHOLE
 	| MVAR_CLEAN
 	| MVAR_DIRTY
+#ifdef GHC_7_7
+	| TVAR
+#endif
 	| ARR_WORDS
 	| MUT_ARR_PTRS_CLEAN
 	| MUT_ARR_PTRS_DIRTY

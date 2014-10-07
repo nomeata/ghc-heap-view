@@ -72,11 +72,12 @@ Library
   if flag(ghc_7_7)
     build-depends: ghc >= 7.7
     cc-options: -DGHC_7_7
+    cpp-options: -DGHC_7_7
   else
     build-depends: ghc < 7.7
   C-Sources: cbits/HeapView.c cbits/HeapViewPrim.cmm
   Hs-source-dirs: src/
-  Ghc-options: -Wall
+  Ghc-options: -Wall -dcmm-lint
 
   if flag(prim-supports-any)
     cpp-options: -DPRIM_SUPPORTS_ANY
