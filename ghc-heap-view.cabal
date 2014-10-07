@@ -78,7 +78,7 @@ Library
     build-depends: ghc < 7.7
   C-Sources: cbits/HeapView.c cbits/HeapViewPrim.cmm
   Hs-source-dirs: src/
-  Ghc-options: -Wall -dcmm-lint
+  Ghc-options: -Wall
   default-language: Haskell2010
 
   if flag(prim-supports-any)
