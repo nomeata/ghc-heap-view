@@ -42,7 +42,8 @@ License:             BSD3
 License-file:        LICENSE
 Author:              Joachim Breitner, Dennis Felsing
 Maintainer:          Joachim Breitner <mail@joachim-breitner.de>
-Copyright:           2012-2013 Joachim Breitner
+Copyright:           2012-2014 Joachim Breitner
+bug-reports:         https://github.com/nomeata/ghc-heap-view
 Category:            Debug, GHC
 Build-type:          Custom
 Cabal-version:       >=1.14
@@ -83,5 +84,6 @@ Library
     cpp-options: -DPRIM_SUPPORTS_ANY
   
 source-repository head
-  type:     darcs
-  location: http://darcs.nomeata.de/ghc-heap-view/
+  type:     git
+  location: git://git.nomeata.de/ghc-heap-view.git
+  subdir:   Cabal
