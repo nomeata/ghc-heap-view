@@ -9,50 +9,41 @@ aToWordzh (P_ clos)
 
 slurpClosurezh ( P_ closure )
 {
-    W_ info, ptrs, nptrs, p, ptrs_arr, nptrs_arr;
+    W_ info, ptrs, nptrs, p, ptrs_arr, dat_arr;
     info  = %GET_STD_INFO(UNTAG(closure));
 
     ptrs  = TO_W_(%INFO_PTRS(info));
     nptrs = TO_W_(%INFO_NPTRS(info));
 
-    W_ ptrs_arr_sz, ptrs_arr_cards, nptrs_arr_sz;
-    nptrs_arr_sz = SIZEOF_StgArrWords   + WDS(nptrs);
-    ptrs_arr_cards = mutArrPtrsCardWords(ptrs);
-    ptrs_arr_sz  = SIZEOF_StgMutArrPtrs + WDS(ptrs) + WDS(ptrs_arr_cards);
-
-    ALLOC_PRIM_P (ptrs_arr_sz + nptrs_arr_sz, stg_unpackClosurezh, closure);
-
     W_ clos;
     clos = UNTAG(closure);
 
-    ptrs_arr  = Hp - nptrs_arr_sz - ptrs_arr_sz + WDS(1);
-    nptrs_arr = Hp - nptrs_arr_sz + WDS(1);
+    W_ len;
+    (len) = foreign "C" gtc_heap_view_closureSize(clos "ptr");
 
-    SET_HDR(ptrs_arr, stg_MUT_ARR_PTRS_FROZEN_info, CCCS);
-    StgMutArrPtrs_ptrs(ptrs_arr) = ptrs;
-    StgMutArrPtrs_size(ptrs_arr) = ptrs + ptrs_arr_cards;
+    W_ ptrs_arr_sz, ptrs_arr_cards, dat_arr_sz;
+    dat_arr_sz = SIZEOF_StgArrWords + WDS(len);
 
+    ALLOC_PRIM_P (dat_arr_sz, slurpClosurezh, closure);
+
+    dat_arr = Hp - dat_arr_sz + WDS(1);
+
+
+    SET_HDR(dat_arr, stg_ARR_WORDS_info, CCCS);
+    StgArrWords_bytes(dat_arr) = WDS(len);
     p = 0;
 for:
-    if(p < ptrs) {
-         W_[ptrs_arr + SIZEOF_StgMutArrPtrs + WDS(p)] = StgClosure_payload(clos,p);
+    if(p < len) {
+         W_[BYTE_ARR_CTS(dat_arr) + WDS(p)] = W_[clos + WDS(p)];
          p = p + 1;
          goto for;
     }
-    /* We can leave the card table uninitialised, since the array is
-       allocated in the nursery.  The GC will fill it in if/when the array
-       is promoted. */
 
-    SET_HDR(nptrs_arr, stg_ARR_WORDS_info, CCCS);
-    StgArrWords_bytes(nptrs_arr) = WDS(nptrs);
-    p = 0;
-for2:
-    if(p < nptrs) {
-         W_[BYTE_ARR_CTS(nptrs_arr) + WDS(p)] = StgClosure_payload(clos, p+ptrs);
-         p = p + 1;
-         goto for2;
-    }
-    return (info, ptrs_arr, nptrs_arr);
+    W_ ptrArray;
+
+    ("ptr" ptrArray) = foreign "C" gtc_heap_view_closurePtrs(MyCapability() "ptr", clos "ptr");
+
+    return (info, dat_arr, ptrArray);
 }
 
 
