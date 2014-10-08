@@ -247,6 +247,7 @@ StgMutArrPtrs *gtc_heap_view_closurePtrs(Capability *cap, StgClosure *closure) {
         case MUT_VAR_CLEAN:
             ptrs[nptrs++] = ((StgMutVar *)closure)->var;
             break;
+        case MVAR_DIRTY:
         case MVAR_CLEAN:
             ptrs[nptrs++] = (StgClosure *)((StgMVar *)closure)->head;
             ptrs[nptrs++] = (StgClosure *)((StgMVar *)closure)->tail;
