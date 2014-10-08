@@ -560,6 +560,8 @@ getClosureData x = do
         AP -> do
             unless (length ptrs >= 1) $
                 fail "Expected at least 1 ptr argument to AP"
+            unless (length wds >= 3) $
+                fail "Expected at least 3 raw words to AP"
             return $ APClosure itbl 
                 (fromIntegral $ wds !! 2)
                 (fromIntegral $ shiftR (wds !! 2) (wORD_SIZE_IN_BITS `div` 2))
@@ -568,6 +570,8 @@ getClosureData x = do
         PAP -> do
             unless (length ptrs >= 1) $
                 fail "Expected at least 1 ptr argument to PAP"
+            unless (length wds >= 3) $
+                fail "Expected at least 3 raw words to AP"
             return $ PAPClosure itbl 
                 (fromIntegral $ wds !! 2)
                 (fromIntegral $ shiftR (wds !! 2) (wORD_SIZE_IN_BITS `div` 2))
@@ -596,22 +600,32 @@ getClosureData x = do
                 fail "Expected at least 1 ptr argument to BLACKHOLE"
             return $ BlackholeClosure itbl (head ptrs)
 
-        BCO ->
+        BCO -> do
+            unless (length ptrs >= 3) $
+                fail $ "Expected at least 3 ptr argument to BCO, found " ++ show (length ptrs)
+            unless (length wds >= 6) $
+                fail $ "Expected at least 6 words to BCO, found " ++ show (length wds)
             return $ BCOClosure itbl (ptrs !! 0) (ptrs !! 1) (ptrs !! 2)
                 (fromIntegral $ wds !! 4)
                 (fromIntegral $ shiftR (wds !! 4) (wORD_SIZE_IN_BITS `div` 2))
                 (wds !! 5)
 
-        ARR_WORDS ->
+        ARR_WORDS -> do
+            unless (length wds >= 2) $
+                fail $ "Expected at least 2 words to ARR_WORDS, found " ++ show (length wds)
             return $ ArrWordsClosure itbl (wds !! 1) (drop 2 wds)
 
-        t | t == MUT_ARR_PTRS_FROZEN || t == MUT_ARR_PTRS_FROZEN0 ->
+        t | t == MUT_ARR_PTRS_FROZEN || t == MUT_ARR_PTRS_FROZEN0 -> do
+            unless (length wds >= 3) $
+                fail $ "Expected at least 3 words to MUT_ARR_PTRS_FROZEN0 found " ++ show (length wds)
             return $ MutArrClosure itbl (wds !! 1) (wds !! 2) ptrs
 
         t | t == MUT_VAR_CLEAN || t == MUT_VAR_DIRTY ->
             return $ MutVarClosure itbl (head ptrs)
 
-        t | t == MVAR_CLEAN || t == MVAR_DIRTY ->
+        t | t == MVAR_CLEAN || t == MVAR_DIRTY -> do
+            unless (length ptrs >= 3) $
+                fail $ "Expected at least 3 ptrs to MVAR, found " ++ show (length ptrs)
             return $ MVarClosure itbl (ptrs !! 0) (ptrs !! 1) (ptrs !! 2)
 
         BLOCKING_QUEUE ->
