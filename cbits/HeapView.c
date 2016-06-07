@@ -62,7 +62,7 @@ char *gtc_heap_view_closure_type_names[] = {
  [RET_BCO]               = "RET_BCO",
  [RET_SMALL]             = "RET_SMALL",
  [RET_BIG]               = "RET_BIG",
-#ifndef GHC_7_7
+#if !defined(GHC_7_7) && !defined(GHC_8_0)
  [RET_DYN]               = "RET_DYN",
 #endif
  [RET_FUN]               = "RET_FUN",
@@ -74,7 +74,7 @@ char *gtc_heap_view_closure_type_names[] = {
  [BLOCKING_QUEUE]        = "BLOCKING_QUEUE",
  [MVAR_CLEAN]            = "MVAR_CLEAN",
  [MVAR_DIRTY]            = "MVAR_DIRTY",
-#ifdef GHC_7_7
+#if defined(GHC_7_7) || defined(GHC_8_0)
  [TVAR]                  = "TVAR",
 #endif
  [ARR_WORDS]             = "ARR_WORDS",

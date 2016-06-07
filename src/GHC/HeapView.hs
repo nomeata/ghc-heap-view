@@ -241,7 +241,7 @@ data ClosureType =
         | RET_BCO
         | RET_SMALL
         | RET_BIG
-#ifndef GHC_7_7
+#if !defined(GHC_7_7) && !defined(GHC_8_0)
         | RET_DYN
 #endif
         | RET_FUN
@@ -253,7 +253,7 @@ data ClosureType =
         | BLACKHOLE
         | MVAR_CLEAN
         | MVAR_DIRTY
-#ifdef GHC_7_7
+#if defined(GHC_7_7) || defined(GHC_8_0)
         | TVAR
 #endif
         | ARR_WORDS

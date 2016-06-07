@@ -299,8 +299,11 @@ data BCI box
     | BCITESTEQ_W Word Int
     deriving (Show, Functor, Traversable, Foldable)
 
+#if MIN_VERSION_binary(0,8,1)
+#else
 getInthost :: Get Int
 getInthost = fromIntegral <$> getWordhost
 
 getInt16host :: Get Int16
 getInt16host = fromIntegral <$> getWord16host
+#endif
