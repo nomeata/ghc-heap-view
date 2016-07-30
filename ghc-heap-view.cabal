@@ -4,11 +4,11 @@ Synopsis:            Extract the heap representation of Haskell values and thunk
 Description:
   This library provides functions to introspect the Haskell heap, for example
   to investigate sharing and lazy evaluation. As this is tied to the internals
-  of the compiler,it only works with specific versions. Currently, GHC 7.4
+  of the compiler, it only works with specific versions. Currently, GHC 7.4
   through 7.10 should be supported.
   .
   It has been inspired by (and taken code from) the vacuum package and the GHCi
-  debugger, but also allows to investiage thunks and other closures. 
+  debugger, but also allows to investigate thunks and other closures. 
   .
   This package also provides a new GHCi-command, @:printHeap@, which allows you
   to inspect the current heap representation of a value, including sharing and
