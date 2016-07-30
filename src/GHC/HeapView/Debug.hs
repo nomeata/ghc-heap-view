@@ -11,13 +11,13 @@ import Data.Functor
 import Data.Char
 import Data.IORef
 
--- | This functions walks the heap referenced by the argument, printing the
+-- | This function walks the heap referenced by the argument, printing the
 -- \"path\", i.e. the pointer indices from the initial to the current closure
 -- and the closure itself. When the runtime crashes, the problem is likely
 -- related to one of the earlier steps.
 walkHeap
     :: Bool -- ^ Whether to check for cycles 
-    -> Bool -- ^ Whethter to GC in every step
+    -> Bool -- ^ Whether to GC in every step
     -> Box -- ^ The closure to investigate
     -> IO ()
 walkHeap slow check x = do
