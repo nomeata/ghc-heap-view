@@ -6,9 +6,9 @@ Copyright   :  (c) 2013 Joachim Breitner
 License     :  BSD3
 Maintainer  :  Joachim Breitner <mail@joachim-breitner.de>
 
-To avoid space leaks and unwanted evaluation behaviour, the programmer might want his data to be fully evaluated at certians positions in the code. This can be enforced, for example, by ample use of "Control.DeepSeq", but this comes at a cost.
+To avoid space leaks and unwanted evaluation behaviour, the programmer might want his data to be fully evaluated at certain positions in the code. This can be enforced, for example, by ample use of "Control.DeepSeq", but this comes at a cost.
 
-Experienced users hence use 'Control.DeepSeq.deepseq' only to find out about the existance of space leaks and optimize their code to not create the thunks in the first place, until the code no longer shows better performance with 'deepseq'.
+Experienced users hence use 'Control.DeepSeq.deepseq' only to find out about the existence of space leaks and optimize their code to not create the thunks in the first place, until the code no longer shows better performance with 'deepseq'.
 
 This module provides an alternative approach: An explicit assertion about the evaluation state. If the programmer expect a certain value to be fully evaluated at a specific point of the program (e.g. before a call to 'writeIORef'), he can state that, and as long as assertions are enabled, this statement will be checked. In the production code the assertions can be disabled, to avoid the run-time cost.
 
@@ -38,7 +38,7 @@ enabledRef = unsafePerformIO $ newIORef True
 {-# NOINLINE enabledRef #-}
 
 -- Everything is in normal form, unless it is a
--- thunks explicitly marked as such.
+-- thunk explicitly marked as such.
 -- Indirection are also considered to be in HNF
 isHNF :: Closure -> IO Bool
 isHNF c = do

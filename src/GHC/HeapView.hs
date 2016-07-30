@@ -308,7 +308,7 @@ data GenClosure b =
         info         :: StgInfoTable 
         , indirectee   :: b
     } |
-    -- In GHCi, if Linker.h would allow a reverse looup, we could for exported
+    -- In GHCi, if Linker.h would allow a reverse lookup, we could for exported
     -- functions fun actually find the name here.
     -- At least the other direction works via "lookupSymbol
     -- base_GHCziBase_zpzp_closure" and yields the same address (up to tags)
