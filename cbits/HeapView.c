@@ -57,7 +57,11 @@ char *gtc_heap_view_closure_type_names[] = {
  [PAP]                   = "PAP",
  [AP_STACK]              = "AP_STACK",
  [IND]                   = "IND",
+#ifdef MIN_VERSION_GLASGOW_HASKELL
+#if !MIN_VERSION_GLASGOW_HASKELL(8,1,0,0)
  [IND_PERM]              = "IND_PERM",
+#endif
+#endif
  [IND_STATIC]            = "IND_STATIC",
  [RET_BCO]               = "RET_BCO",
  [RET_SMALL]             = "RET_SMALL",
@@ -230,7 +234,11 @@ StgMutArrPtrs *gtc_heap_view_closurePtrs(Capability *cap, StgClosure *closure) {
             break;
             
         case IND:
+#ifdef MIN_VERSION_GLASGOW_HASKELL
+#if !MIN_VERSION_GLASGOW_HASKELL(8,1,0,0)
         case IND_PERM:
+#endif
+#endif
         case IND_STATIC:
         case BLACKHOLE:
             ptrs[nptrs++] = (StgClosure *)(((StgInd *)closure)->indirectee);
