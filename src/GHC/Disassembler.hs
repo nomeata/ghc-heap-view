@@ -12,9 +12,7 @@ import Data.ByteString.Lazy.Builder.Extras
 import Data.Binary.Get
 import Data.Word
 import Data.Int
-import Data.Monoid
 import Data.Bits
-import Data.Functor
 import Data.Foldable    ( Foldable )
 import Data.Traversable ( Traversable )
 
@@ -237,13 +235,13 @@ disassemble ptrs lits = runGet $ do
                 return BCIBRK_FUN
             x -> error $ "Unknown opcode " ++ show x
         (i :) `fmap` nextInst
-            
+
 
 -- | The various byte code instructions that GHCi supports.
 data BCI box
     = BCISTKCHECK Word
     | BCIPUSH_L Word16
-    | BCIPUSH_LL Word16 Word16 
+    | BCIPUSH_LL Word16 Word16
     | BCIPUSH_LLL Word16 Word16 Word16
     | BCIPUSH_G box
     | BCIPUSH_ALTS box

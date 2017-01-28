@@ -27,7 +27,6 @@ where
 import GHC.HeapView
 import Debug.Trace
 import Control.Monad
-import Data.Functor
 import Text.Printf
 import Language.Haskell.TH (Q, Exp(AppE,VarE,LitE), Lit(StringL), Loc, location, loc_filename, loc_start, mkName)
 import Data.IORef
@@ -43,7 +42,7 @@ enabledRef = unsafePerformIO $ newIORef True
 isHNF :: Closure -> IO Bool
 isHNF c = do
     case c of
-        ThunkClosure {}    -> return False 
+        ThunkClosure {}    -> return False
         APClosure {}       -> return False
         SelectorClosure {} -> return False
         BCOClosure {}      -> return False
@@ -98,7 +97,7 @@ assertNFHere = do
 assertNF' :: String ->  a -> IO ()
 assertNF' str x = do
     en <- readIORef enabledRef
-    when en $ do 
+    when en $ do
         depths <- assertNFBoxed 0 (asBox x)
         unless (null depths) $ do
             g <- buildHeapGraph (maximum depths + 3) () (asBox x)

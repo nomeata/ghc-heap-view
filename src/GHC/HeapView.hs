@@ -57,7 +57,7 @@ import GHC.Exts         ( Any,
 import GHC.Arr          (Array(..))
 
 
-import Foreign          hiding ( unsafePerformIO, void )
+import Foreign          hiding ( void )
 import Numeric          ( showHex )
 import Data.Char
 import Data.List
@@ -96,14 +96,14 @@ type HalfWord = Word16
 instance Show Box where
 -- From libraries/base/GHC/Ptr.lhs
    showsPrec _ (Box a) rs =
-    -- unsafePerformIO (print "↓" >> pClosure a) `seq`    
+    -- unsafePerformIO (print "↓" >> pClosure a) `seq`
     pad_out (showHex addr "") ++ (if tag>0 then "/" ++ show tag else "") ++ rs
      where
        ptr  = W# (aToWord# a)
        tag  = ptr .&. fromIntegral tAG_MASK -- ((1 `shiftL` TAG_BITS) -1)
        addr = ptr - tag
         -- want 0s prefixed to pad it out to a fixed length.
-       pad_out ls = 
+       pad_out ls =
           '0':'x':(replicate (2*wORD_SIZE - length ls) '0') ++ ls
 
 -- | Boxes can be compared, but this is not pure, as different heap objects can,
@@ -117,7 +117,7 @@ areBoxesEqual (Box a) (Box b) = case reallyUnsafePtrEqualityUpToTag# a b of
 {-|
   This takes an arbitrary value and puts it into a box. Note that calls like
 
-  > asBox (head list) 
+  > asBox (head list)
 
   will put the thunk \"head list\" into the box, /not/ the element at the head
   of the list. For that, use careful case expressions:
@@ -149,7 +149,7 @@ data StgInfoTable = StgInfoTable {
 
 instance Storable StgInfoTable where
 
-   sizeOf itbl 
+   sizeOf itbl
       = sum
         [
          fieldSz ptrs itbl,
@@ -158,7 +158,7 @@ instance Storable StgInfoTable where
          fieldSz srtlen itbl
         ]
 
-   alignment _ 
+   alignment _
       = wORD_SIZE
 
    poke _a0 _itbl
@@ -171,15 +171,15 @@ instance Storable StgInfoTable where
            nptrs'  <- load
            tipe'   <- load
            srtlen' <- load
-           return 
-              StgInfoTable { 
+           return
+              StgInfoTable {
                  ptrs   = ptrs',
                  nptrs  = nptrs',
                  tipe   = toEnum (fromIntegral (tipe'::HalfWord)),
                  srtlen = srtlen'
               }
 
-fieldSz :: (Storable a, Storable b) => (a -> b) -> a -> Int
+fieldSz :: Storable b => (a -> b) -> a -> Int
 fieldSz sel x = sizeOf (sel x)
 
 load :: Storable a => PtrIO a
@@ -284,7 +284,7 @@ data ClosureType =
  -}
 data GenClosure b =
     ConsClosure {
-        info         :: StgInfoTable 
+        info         :: StgInfoTable
         , ptrArgs    :: [b]
         , dataArgs   :: [Word]
         , pkg        :: String
@@ -292,20 +292,20 @@ data GenClosure b =
         , name       :: String
     } |
     ThunkClosure {
-        info         :: StgInfoTable 
+        info         :: StgInfoTable
         , ptrArgs    :: [b]
         , dataArgs   :: [Word]
     } |
     SelectorClosure {
-        info         :: StgInfoTable 
+        info         :: StgInfoTable
         , selectee   :: b
     } |
     IndClosure {
-        info         :: StgInfoTable 
+        info         :: StgInfoTable
         , indirectee   :: b
     } |
     BlackholeClosure {
-        info         :: StgInfoTable 
+        info         :: StgInfoTable
         , indirectee   :: b
     } |
     -- In GHCi, if Linker.h would allow a reverse lookup, we could for exported
@@ -313,26 +313,26 @@ data GenClosure b =
     -- At least the other direction works via "lookupSymbol
     -- base_GHCziBase_zpzp_closure" and yields the same address (up to tags)
     APClosure {
-        info         :: StgInfoTable 
+        info         :: StgInfoTable
         , arity      :: HalfWord
         , n_args     :: HalfWord
         , fun        :: b
         , payload    :: [b]
     } |
     PAPClosure {
-        info         :: StgInfoTable 
+        info         :: StgInfoTable
         , arity      :: HalfWord
         , n_args     :: HalfWord
         , fun        :: b
         , payload    :: [b]
     } |
     APStackClosure {
-        info         :: StgInfoTable 
+        info         :: StgInfoTable
         , fun        :: b
         , payload    :: [b]
     } |
     BCOClosure {
-        info         :: StgInfoTable 
+        info         :: StgInfoTable
         , instrs     :: b
         , literals   :: b
         , bcoptrs    :: b
@@ -341,53 +341,53 @@ data GenClosure b =
         , bitmap     :: Word
     } |
     ArrWordsClosure {
-        info         :: StgInfoTable 
+        info         :: StgInfoTable
         , bytes      :: Word
         , arrWords   :: [Word]
     } |
     MutArrClosure {
-        info         :: StgInfoTable 
+        info         :: StgInfoTable
         , mccPtrs    :: Word
         , mccSize    :: Word
         , mccPayload :: [b]
         -- Card table ignored
     } |
     MutVarClosure {
-        info         :: StgInfoTable 
+        info         :: StgInfoTable
         , var        :: b
     } |
     MVarClosure {
-        info         :: StgInfoTable 
+        info         :: StgInfoTable
         , queueHead  :: b
         , queueTail  :: b
         , value      :: b
     } |
     FunClosure {
-        info         :: StgInfoTable 
+        info         :: StgInfoTable
         , ptrArgs    :: [b]
         , dataArgs   :: [Word]
     } |
     BlockingQueueClosure {
-        info         :: StgInfoTable 
+        info         :: StgInfoTable
         , link       :: b
         , blackHole  :: b
         , owner      :: b
         , queue      :: b
     } |
     OtherClosure {
-        info         :: StgInfoTable 
+        info         :: StgInfoTable
         , hvalues    :: [b]
         , rawWords   :: [Word]
     } |
     UnsupportedClosure {
-        info         :: StgInfoTable 
+        info         :: StgInfoTable
     }
  deriving (Show, Functor, Foldable, Traversable)
 
 
 type Closure = GenClosure Box
 
--- | For generic code, this function returns all referenced closures. 
+-- | For generic code, this function returns all referenced closures.
 allPtrs :: GenClosure b -> [b]
 allPtrs (ConsClosure {..}) = ptrArgs
 allPtrs (ThunkClosure {..}) = ptrArgs
@@ -449,7 +449,7 @@ getClosureRaw x =
         (# iptr, dat, ptrs #) -> do
             let nelems = (I# (sizeofByteArray# dat)) `div` wORD_SIZE
                 rawWords = [W# (indexWordArray# dat i) | I# i <- [0.. fromIntegral nelems -1] ]
-                pelems = I# (sizeofArray# ptrs) 
+                pelems = I# (sizeofArray# ptrs)
                 ptrList = amap' Box $ Array 0 (pelems - 1) pelems ptrs
             -- This is just for good measure, and seems to be not important.
             mapM_ evaluate ptrList
@@ -483,7 +483,7 @@ dataConInfoPtrToNames ptr = do
           offsetToString <- peek (ptr' `plusPtr` (negate wORD_SIZE))
           return $ (ptr' `plusPtr` stdInfoTableSizeB)
                     `plusPtr` (fromIntegral (offsetToString :: Word))
-    -- This is code for !ghciTablesNextToCode: 
+    -- This is code for !ghciTablesNextToCode:
     {-
       | otherwise = peek . intPtrToPtr
                       . (+ fromIntegral
@@ -544,7 +544,7 @@ getClosureData :: a -> IO Closure
 getClosureData x = do
     (iptr, wds, ptrs) <- getClosureRaw x
     itbl <- peek iptr
-    case tipe itbl of 
+    case tipe itbl of
         t | t >= CONSTR && t <= CONSTR_NOCAF_STATIC -> do
             (pkg, modl, name) <- dataConInfoPtrToNames iptr
             if modl == "ByteCodeInstr" && name == "BreakInfo"
@@ -562,7 +562,7 @@ getClosureData x = do
                 fail "Expected at least 1 ptr argument to AP"
             unless (length wds >= 3) $
                 fail "Expected at least 3 raw words to AP"
-            return $ APClosure itbl 
+            return $ APClosure itbl
                 (fromIntegral $ wds !! 2)
                 (fromIntegral $ shiftR (wds !! 2) (wORD_SIZE_IN_BITS `div` 2))
                 (head ptrs) (tail ptrs)
@@ -572,7 +572,7 @@ getClosureData x = do
                 fail "Expected at least 1 ptr argument to PAP"
             unless (length wds >= 3) $
                 fail "Expected at least 3 raw words to AP"
-            return $ PAPClosure itbl 
+            return $ PAPClosure itbl
                 (fromIntegral $ wds !! 2)
                 (fromIntegral $ shiftR (wds !! 2) (wORD_SIZE_IN_BITS `div` 2))
                 (head ptrs) (tail ptrs)
@@ -697,15 +697,15 @@ ppClosure showBox prec c = case c of
         ["_bco"]
     ArrWordsClosure {..} -> app
         ["toArray", "("++show (length arrWords) ++ " words)", intercalate "," (shorten (map show arrWords)) ]
-    MutArrClosure {..} -> app 
+    MutArrClosure {..} -> app
         ["toMutArray", "("++show (length mccPayload) ++ " ptrs)",  intercalate "," (shorten (map (showBox 10) mccPayload))]
     MutVarClosure {..} -> app $
         ["_mutVar", (showBox 10) var]
     MVarClosure {..} -> app $
         ["MVar", (showBox 10) value]
-    FunClosure {..} -> 
+    FunClosure {..} ->
         "_fun" ++ braceize (map (showBox 0) ptrArgs ++ map show dataArgs)
-    BlockingQueueClosure {..} -> 
+    BlockingQueueClosure {..} ->
         "_blockingQueue"
     OtherClosure {..} ->
         "_other"
@@ -716,7 +716,7 @@ ppClosure showBox prec c = case c of
     app xs = addBraces (10 <= prec) (intercalate " " xs)
 
     shorten xs = if length xs > 20 then take 20 xs ++ ["(and more)"] else xs
-    
+
 {- $heapmap
 
    For more global views of the heap, you can use heap maps. These come in
@@ -726,7 +726,7 @@ ppClosure showBox prec c = case c of
    The entries of a 'HeapGraph' can be annotated with arbitrary values. Most
    operations expect this to be in the 'Monoid' class: They use 'mempty' to
    annotate closures added because the passed values reference them, and they
-   use 'mappend' to combine the annotations when two values conincide, e.g. 
+   use 'mappend' to combine the annotations when two values conincide, e.g.
    during 'updateHeapGraph'.
 -}
 
@@ -749,7 +749,7 @@ buildHeapTree n b = do
     return $ HeapTree b c'
 
 -- | Pretty-Printing a heap Tree
--- 
+--
 -- Example output for @[Just 4, Nothing, *something*]@, where *something* is an
 -- unevaluated expression depending on the command line argument.
 --
@@ -764,7 +764,7 @@ ppHeapTree = go 0
         | Just bc <- disassembleBCO heapTreeClosure c'
                                        = app ("_bco" : map (go 10) (concatMap F.toList bc))
         | otherwise                    = ppClosure go prec c'
-      where 
+      where
         app [a] = a ++ "()"
         app xs = addBraces (10 <= prec) (intercalate " " xs)
 
@@ -793,7 +793,7 @@ isHeapTreeString t = do
 -- exceeding the recursion bound passed to 'buildHeapGraph'.
 --
 -- Besides a pointer to the stored value and the closure representation we
--- also keep track of whether the value was still alive at the last update of the 
+-- also keep track of whether the value was still alive at the last update of the
 -- heap graph. In addition we have a slot for arbitrary data, for the user's convenience.
 data HeapGraphEntry a = HeapGraphEntry {
         hgeBox :: Box,
@@ -843,7 +843,7 @@ multiBuildHeapGraph limit = generalBuildHeapGraph limit (HeapGraph M.empty)
 --
 --   Returns the updated 'HeapGraph' and the index of the added value.
 addHeapGraph
-    :: Monoid a 
+    :: Monoid a
     => Int -- ^ Search limit
     -> a -- ^ Data to be stored with the added value
     -> Box -- ^ Value to add to the graph
@@ -860,7 +860,7 @@ annotateHeapGraph d i (HeapGraph hg) = HeapGraph $ M.update go i hg
   where
     go hge = Just $ hge { hgeData = hgeData hge <> d }
 
-generalBuildHeapGraph 
+generalBuildHeapGraph
     :: Monoid a
     => Int
     -> HeapGraph a
@@ -872,7 +872,7 @@ generalBuildHeapGraph limit (HeapGraph hg) addBoxes = do
     let boxList = [ (hgeBox hge, i) | (i, hge) <- M.toList hg ]
         indices | M.null hg = [0..]
                 | otherwise = [1 + fst (M.findMax hg)..]
-        
+
         initialState = (boxList, indices, [])
     -- It is ok to use the Monoid (IntMap a) instance here, because
     -- we will, besides the first time, use 'tell' only to add singletons not
@@ -931,7 +931,7 @@ updateHeapGraph limit (HeapGraph startHG) = do
         (j, hg') <- liftIO $ addHeapGraph limit (hgeData hge) (hgeBox hge) hg
         tell (M.singleton i j)
         return hg'
-                
+
 -- | Pretty-prints a HeapGraph. The resulting string contains newlines. Example
 -- for @let s = \"Ki\" in (s, s, cycle \"Ho\")@:
 --
@@ -942,7 +942,7 @@ ppHeapGraph :: HeapGraph a -> String
 ppHeapGraph (HeapGraph m) = letWrapper ++ ppRef 0 (Just heapGraphRoot)
   where
     -- All variables occuring more than once
-    bindings = boundMultipleTimes (HeapGraph m) [heapGraphRoot] 
+    bindings = boundMultipleTimes (HeapGraph m) [heapGraphRoot]
 
     letWrapper =
         if null bindings
@@ -961,7 +961,7 @@ ppHeapGraph (HeapGraph m) = letWrapper ++ ppRef 0 (Just heapGraphRoot)
     ppBindingMap = M.fromList $
         concat $
         map (zipWith (\j (i,c) -> (i, [c] ++ show j)) [(1::Int)..]) $
-        groupBy ((==) `on` snd) $ 
+        groupBy ((==) `on` snd) $
         sortBy (compare `on` snd)
         [ (i, bindingLetter i) | i <- bindings ]
 
@@ -980,13 +980,13 @@ ppHeapGraph (HeapGraph m) = letWrapper ++ ppRef 0 (Just heapGraphRoot)
 
     ppRef _ Nothing = "..."
     ppRef prec (Just i) | i `elem` bindings = ppVar i
-                        | otherwise = ppEntry prec (iToE i) 
+                        | otherwise = ppEntry prec (iToE i)
     iToE i = m M.! i
 
     iToUnboundE i = if i `elem` bindings then Nothing else M.lookup i m
 
     isList :: HeapGraphEntry a -> Maybe ([Maybe HeapGraphIndex])
-    isList hge = 
+    isList hge =
         if isNil (hgeClosure hge)
           then return []
           else do

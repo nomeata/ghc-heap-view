@@ -7,7 +7,6 @@ import System.IO
 import Control.Monad
 import System.Mem
 import Data.Maybe
-import Data.Functor
 import Data.Char
 import Data.IORef
 
@@ -16,7 +15,7 @@ import Data.IORef
 -- and the closure itself. When the runtime crashes, the problem is likely
 -- related to one of the earlier steps.
 walkHeap
-    :: Bool -- ^ Whether to check for cycles 
+    :: Bool -- ^ Whether to check for cycles
     -> Bool -- ^ Whether to GC in every step
     -> Box -- ^ The closure to investigate
     -> IO ()
@@ -58,7 +57,7 @@ findM p (x:xs) = do
 
 isCharCons :: GenClosure Box -> IO Bool
 isCharCons c | Just (h,_) <- isCons c = (isJust . isChar) <$> getBoxedClosureData h
-isCharCons _ = return False 
+isCharCons _ = return False
 
 isCons :: GenClosure b -> Maybe (b, b)
 isCons (ConsClosure { name = ":", dataArgs = [], ptrArgs = [h,t]}) = Just (h,t)
