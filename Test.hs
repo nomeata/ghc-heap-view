@@ -2,66 +2,79 @@
 
 import GHC.Exts
 import GHC.HeapView
+
 import Control.DeepSeq
+import Control.Monad
 
 import System.Environment
 import System.Mem
 
-import Control.Monad
 
-l = [1,2,3]
-
+main :: IO ()
 main = do
     args <- map length `fmap` getArgs
-    let l2 = 4:l
-    (l ++ l2 ++ args) `deepseq` return ()
+    let list2 = 4:list
+    (list ++ list2 ++ args) `deepseq` pure ()
 
-    let x = l ++ l2 ++ args
+    let x = list ++ list2 ++ args
     performGC
-    cl <- getClosureData l
-    case cl of ConsClosure {} -> return ()
-    unless (name cl == ":") $ do
-        fail "Wrong name"
+    getClosureAssert list >>= \ cl ->
+        unless (name cl == ":") $ fail "Wrong name"
 
-    cl <- getClosureData l2
-    case cl of ConsClosure {} -> return ()
-    eq <- areBoxesEqual (ptrArgs cl !! 1) (asBox l)
-    unless eq $ do
-        fail "Doesnt reference l"
+    getClosureAssert list2 >>= \ cl -> do
+        eq <- areBoxesEqual (ptrArgs cl !! 1) (asBox list)
+        unless eq $ fail "Doesn't reference list"
 
-    cl <- getClosureData args
-    unless (tipe (info cl) == CONSTR_NOCAF_STATIC) $ do
-        fail "Not a CONSTR_NOCAF_STATIC"
+    getClosureData args >>= \ cl ->
+        assertClosureType CONSTR_NOCAF_STATIC (info cl)
 
-    cl <- getClosureData x
-    unless (tipe (info cl) == THUNK_2_0) $ do
-        fail "Not a THUNK_2_0"
-
+    getClosureData x >>= \ cl ->
+        assertClosureType THUNK_2_0 (info cl)
 
     let !(I# m) = length args + 42
     let !(I# m') = length args + 23
-    let f = \x n -> take (I# m + I# x) n ++ args
-        t = f m' l2
-
-    cl <- getClosureData f
-    unless (tipe (info cl) == FUN_1_1) $ do
-        fail "Not a FUN_1_1"
-    unless (dataArgs cl == [42]) $ do
-        fail "Wrong data arg"
-    cl <- getClosureData t
-    unless (tipe (info cl) == THUNK) $ do
-        fail "Not a THUNK"
-    unless (dataArgs cl == [23]) $ do
-        fail "Wrong data arg"
-    eq <- areBoxesEqual (ptrArgs cl !! 1) (asBox f)
-    unless eq $ do
-        fail "t doesnt reference f"
-
-    let x = id (:) () x
-    x `seq` return ()
+    let f = \ y n -> take (I# m + I# y) n ++ args
     performGC
+
+    getClosureData f >>= \ cl -> do
+        assertClosureType FUN_1_1 (info cl)
+        unless (dataArgs cl == [42]) $ do
+            fail "Wrong data arg"
+
+    let t = f m' list2
+    getClosureData t >>= \ cl -> do
+        assertClosureType THUNK (info cl)
+        unless (dataArgs cl == [23]) $ do
+            fail "Wrong data arg"
+
+        eq <- areBoxesEqual (ptrArgs cl !! 1) (asBox f)
+        unless eq $ fail "t doesnt reference f"
+
+    let z = id (:) () z
+    z `seq` pure ()
+    performGC
+    getClosureAssert z >>= \ cl -> do
+        eq <- areBoxesEqual (ptrArgs cl !! 1) (asBox z)
+        unless eq $
+            fail "z doesnt reference itself"
+
+    putStrLn "Done. No errors."
+
+
+list :: [Int]
+list = [1,2,3]
+
+
+getClosureAssert :: a -> IO Closure
+getClosureAssert x = do
     cl <- getClosureData x
-    case cl of ConsClosure {} -> return ()
-    eq <- areBoxesEqual (ptrArgs cl !! 1) (asBox x)
-    unless eq $ do
-        fail "x doesnt reference itself"
+    case cl of
+        ConsClosure {} -> pure cl
+        _ -> fail "Expected ConsClosure"
+
+
+assertClosureType :: ClosureType -> StgInfoTable -> IO ()
+assertClosureType expected itable = do
+    let actual = tipe itable
+    unless (actual == expected) $
+        fail $ "Expected " ++ show expected ++ " but got " ++ show actual

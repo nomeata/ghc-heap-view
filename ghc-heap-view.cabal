@@ -100,7 +100,7 @@ test-suite Test
   main-is:        Test.hs
   build-depends:  base, ghc-heap-view, deepseq
   default-language: Haskell2010
-  Ghc-options:    -O0
+  Ghc-options:    -Wall -O0
 
 
 source-repository head
