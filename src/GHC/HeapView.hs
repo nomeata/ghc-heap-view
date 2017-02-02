@@ -273,7 +273,13 @@ data ClosureType =
         | CATCH_RETRY_FRAME
         | CATCH_STM_FRAME
         | WHITEHOLE
- deriving (Show, Eq, Enum, Ord)
+#if defined(GHC_8_0)
+        | SMALL_MUT_ARR_PTRS_CLEAN
+        | SMALL_MUT_ARR_PTRS_DIRTY
+        | SMALL_MUT_ARR_PTRS_FROZEN0
+        | SMALL_MUT_ARR_PTRS_FROZEN
+#endif
+ deriving (Show, Eq, Enum, Bounded, Ord)
 
 {-| This is the main data type of this module, representing a Haskell value on
   the heap. This reflects
