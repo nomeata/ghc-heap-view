@@ -31,6 +31,7 @@ import Text.Printf
 import Language.Haskell.TH (Q, Exp(AppE,VarE,LitE), Lit(StringL), Loc, location, loc_filename, loc_start, mkName)
 import Data.IORef
 import System.IO.Unsafe ( unsafePerformIO )
+import Control.Applicative ((<$>))
 
 enabledRef :: IORef Bool
 enabledRef = unsafePerformIO $ newIORef True

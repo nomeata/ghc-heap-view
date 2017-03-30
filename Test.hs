@@ -5,6 +5,7 @@ import GHC.HeapView
 
 import Control.DeepSeq
 import Control.Monad
+import Control.Applicative (pure)
 
 import System.Environment
 import System.Mem

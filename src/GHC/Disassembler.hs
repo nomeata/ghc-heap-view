@@ -15,6 +15,8 @@ import Data.Int
 import Data.Bits
 import Data.Foldable    ( Foldable )
 import Data.Traversable ( Traversable )
+import Control.Applicative ((<$>))
+import Data.Monoid
 
 #include "ghcautoconf.h"
 #include "rts/Bytecodes.h"

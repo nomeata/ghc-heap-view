@@ -9,6 +9,7 @@ import System.Mem
 import Data.Maybe
 import Data.Char
 import Data.IORef
+import Control.Applicative ((<$>))
 
 -- | This function walks the heap referenced by the argument, printing the
 -- \"path\", i.e. the pointer indices from the initial to the current closure
