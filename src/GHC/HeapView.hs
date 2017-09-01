@@ -214,8 +214,12 @@ data ClosureType =
         | CONSTR_2_0
         | CONSTR_1_1
         | CONSTR_0_2
+#if defined(GHC_8_0)
         | CONSTR_STATIC
         | CONSTR_NOCAF_STATIC
+#else
+        | CONSTR_NOCAF
+#endif
         | FUN
         | FUN_1_0
         | FUN_0_1
@@ -236,14 +240,13 @@ data ClosureType =
         | PAP
         | AP_STACK
         | IND
+#if defined(GHC_8_0)
         | IND_PERM
+#endif
         | IND_STATIC
         | RET_BCO
         | RET_SMALL
         | RET_BIG
-#if !defined(GHC_7_7) && !defined(GHC_8_0)
-        | RET_DYN
-#endif
         | RET_FUN
         | UPDATE_FRAME
         | CATCH_FRAME
@@ -253,9 +256,7 @@ data ClosureType =
         | BLACKHOLE
         | MVAR_CLEAN
         | MVAR_DIRTY
-#if defined(GHC_7_7) || defined(GHC_8_0)
         | TVAR
-#endif
         | ARR_WORDS
         | MUT_ARR_PTRS_CLEAN
         | MUT_ARR_PTRS_DIRTY
@@ -273,11 +274,12 @@ data ClosureType =
         | CATCH_RETRY_FRAME
         | CATCH_STM_FRAME
         | WHITEHOLE
-#if defined(GHC_8_0)
         | SMALL_MUT_ARR_PTRS_CLEAN
         | SMALL_MUT_ARR_PTRS_DIRTY
         | SMALL_MUT_ARR_PTRS_FROZEN0
         | SMALL_MUT_ARR_PTRS_FROZEN
+#if defined(GHC_8_2)
+        | COMPACT_NFDATA
 #endif
  deriving (Show, Eq, Enum, Bounded, Ord)
 
@@ -551,7 +553,13 @@ getClosureData x = do
     (iptr, wds, ptrs) <- getClosureRaw x
     itbl <- peek iptr
     case tipe itbl of
-        t | t >= CONSTR && t <= CONSTR_NOCAF_STATIC -> do
+        t | t >= CONSTR
+#if defined(GHC_8_0)
+          , t <= CONSTR_NOCAF_STATIC
+#else
+          , t <= CONSTR_NOCAF
+#endif
+          -> do
             (pkg, modl, name) <- dataConInfoPtrToNames iptr
             if modl == "ByteCodeInstr" && name == "BreakInfo"
               then return $ UnsupportedClosure itbl

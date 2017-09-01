@@ -6,9 +6,9 @@ StgWord gtc_heap_view_closureSize(StgClosure *closure) {
 }
 
 static void
-gtc_heap_view_closure_ptrs_in_large_bitmap(StgClosure *ptrs[], StgWord *nptrs, StgClosure **p, StgLargeBitmap *large_bitmap, nat size )
+gtc_heap_view_closure_ptrs_in_large_bitmap(StgClosure *ptrs[], StgWord *nptrs, StgClosure **p, StgLargeBitmap *large_bitmap, uint32_t size )
 {
-    nat i, j, b;
+    uint32_t i, j, b;
     StgWord bitmap;
 
     b = 0;
@@ -35,8 +35,12 @@ char *gtc_heap_view_closure_type_names[] = {
  [CONSTR_2_0]            = "CONSTR_2_0",
  [CONSTR_1_1]            = "CONSTR_1_1",
  [CONSTR_0_2]            = "CONSTR_0_2",
+#if defined(GHC_8_0)
  [CONSTR_STATIC]         = "CONSTR_STATIC",
  [CONSTR_NOCAF_STATIC]   = "CONSTR_NOCAF_STATIC",
+#else
+ [CONSTR_NOCAF]          = "CONSTR_NOCAF",
+#endif
  [FUN]                   = "FUN",
  [FUN_1_0]               = "FUN_1_0",
  [FUN_0_1]               = "FUN_0_1",
@@ -57,18 +61,13 @@ char *gtc_heap_view_closure_type_names[] = {
  [PAP]                   = "PAP",
  [AP_STACK]              = "AP_STACK",
  [IND]                   = "IND",
-#ifdef MIN_VERSION_GLASGOW_HASKELL
-#if !MIN_VERSION_GLASGOW_HASKELL(8,1,0,0)
+#if defined(GHC_8_0)
  [IND_PERM]              = "IND_PERM",
-#endif
 #endif
  [IND_STATIC]            = "IND_STATIC",
  [RET_BCO]               = "RET_BCO",
  [RET_SMALL]             = "RET_SMALL",
  [RET_BIG]               = "RET_BIG",
-#if !defined(GHC_7_7) && !defined(GHC_8_0)
- [RET_DYN]               = "RET_DYN",
-#endif
  [RET_FUN]               = "RET_FUN",
  [UPDATE_FRAME]          = "UPDATE_FRAME",
  [CATCH_FRAME]           = "CATCH_FRAME",
@@ -78,9 +77,6 @@ char *gtc_heap_view_closure_type_names[] = {
  [BLOCKING_QUEUE]        = "BLOCKING_QUEUE",
  [MVAR_CLEAN]            = "MVAR_CLEAN",
  [MVAR_DIRTY]            = "MVAR_DIRTY",
-#if defined(GHC_7_7) || defined(GHC_8_0)
- [TVAR]                  = "TVAR",
-#endif
  [ARR_WORDS]             = "ARR_WORDS",
  [MUT_ARR_PTRS_CLEAN]    = "MUT_ARR_PTRS_CLEAN",
  [MUT_ARR_PTRS_DIRTY]    = "MUT_ARR_PTRS_DIRTY",
@@ -97,13 +93,20 @@ char *gtc_heap_view_closure_type_names[] = {
  [ATOMICALLY_FRAME]      = "ATOMICALLY_FRAME",
  [CATCH_RETRY_FRAME]     = "CATCH_RETRY_FRAME",
  [CATCH_STM_FRAME]       = "CATCH_STM_FRAME",
- [WHITEHOLE]             = "WHITEHOLE"
+ [WHITEHOLE]             = "WHITEHOLE",
+ [SMALL_MUT_ARR_PTRS_CLEAN]   = "SMALL_MUT_ARR_PTRS_CLEAN",
+ [SMALL_MUT_ARR_PTRS_DIRTY]   = "SMALL_MUT_ARR_PTRS_DIRTY",
+ [SMALL_MUT_ARR_PTRS_FROZEN0] = "SMALL_MUT_ARR_PTRS_FROZEN0",
+ [SMALL_MUT_ARR_PTRS_FROZEN]  = "SMALL_MUT_ARR_PTRS_FROZEN",
+#if defined(GHC_8_2)
+ [COMPACT_NFDATA]  = "COMPACT_NFDATA",
+#endif
 };
 
 
 void gtc_heap_view_closure_ptrs_in_pap_payload(StgClosure *ptrs[], StgWord *nptrs, StgClosure *fun, StgClosure **payload, StgWord size) {
     StgWord bitmap;
-    StgFunInfoTable *fun_info;
+    const StgFunInfoTable *fun_info;
 
     fun_info = get_fun_itbl(UNTAG_CLOSURE(fun));
     // ASSERT(fun_info->i.type != PAP);
@@ -150,7 +153,7 @@ StgMutArrPtrs *gtc_heap_view_closurePtrs(Capability *cap, StgClosure *closure) {
     StgClosure **end;
     StgClosure **ptr;
 
-    StgInfoTable *info = get_itbl(closure);
+    const StgInfoTable *info = get_itbl(closure);
     StgThunkInfoTable *thunk_info;
     StgFunInfoTable *fun_info;
 
@@ -170,8 +173,12 @@ StgMutArrPtrs *gtc_heap_view_closurePtrs(Capability *cap, StgClosure *closure) {
         case CONSTR_1_1:
         case CONSTR_0_2:
         case CONSTR:
+#if defined(GHC_8_0)
         case CONSTR_STATIC:
         case CONSTR_NOCAF_STATIC:
+#else
+        case CONSTR_NOCAF:
+#endif
         case PRIM:
 
         case FUN:
@@ -234,10 +241,8 @@ StgMutArrPtrs *gtc_heap_view_closurePtrs(Capability *cap, StgClosure *closure) {
             break;
             
         case IND:
-#ifdef MIN_VERSION_GLASGOW_HASKELL
-#if !MIN_VERSION_GLASGOW_HASKELL(8,1,0,0)
+#if defined(GHC_8_0)
         case IND_PERM:
-#endif
 #endif
         case IND_STATIC:
         case BLACKHOLE:
