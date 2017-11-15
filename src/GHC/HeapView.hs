@@ -708,11 +708,12 @@ ppClosure showBox prec c = case c of
     APStackClosure {..} -> app $ map (showBox 10) $
         fun : payload
     BCOClosure {..} -> app
-        ["_bco"]
+        ["_bco", showBox 10 bcoptrs]
     ArrWordsClosure {..} -> app
         ["toArray", "("++show (length arrWords) ++ " words)", intercalate "," (shorten (map show arrWords)) ]
     MutArrClosure {..} -> app
-        ["toMutArray", "("++show (length mccPayload) ++ " ptrs)",  intercalate "," (shorten (map (showBox 10) mccPayload))]
+        --["toMutArray", "("++show (length mccPayload) ++ " ptrs)",  intercalate "," (shorten (map (showBox 10) mccPayload))]
+        ["[", intercalate ", " (shorten (map (showBox 10) mccPayload)),"]"]
     MutVarClosure {..} -> app $
         ["_mutVar", (showBox 10) var]
     MVarClosure {..} -> app $
@@ -1032,6 +1033,8 @@ boundMultipleTimes (HeapGraph m) roots = map head $ filter (not.null) $ map tail
 --
 -- If any of these return 'Nothing', then 'disassembleBCO' returns Nothing
 disassembleBCO :: (a -> Maybe (GenClosure b)) -> GenClosure a -> Maybe [BCI b]
+-- Disable the assembler
+disassembleBCO _ _ | id True = Nothing
 disassembleBCO deref (BCOClosure {..}) = do
     opsC <- deref instrs
     litsC <- deref literals

@@ -234,7 +234,7 @@ disassemble ptrs lits = runGet $ do
                 _ <- getWord16host
                 _ <- getWord16host
                 return BCIBRK_FUN
-            x -> error $ "Unknown opcode " ++ show x
+            x -> return $ BCI_DECODE_ERROR x
         (i :) `fmap` nextInst
 
 
@@ -296,6 +296,7 @@ data BCI box
     | BCIBRK_FUN -- ^ We do not parse this opcode's arguments
     | BCITESTLT_W Word Int
     | BCITESTEQ_W Word Int
+    | BCI_DECODE_ERROR Word16
     deriving (Show, Functor, Traversable, Foldable)
 
 #if MIN_VERSION_binary(0,8,1)

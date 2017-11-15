@@ -157,6 +157,8 @@ StgMutArrPtrs *gtc_heap_view_closurePtrs(Capability *cap, StgClosure *closure) {
     StgThunkInfoTable *thunk_info;
     StgFunInfoTable *fun_info;
 
+    // fprintf(stderr,"closurePtrs: Reading type %s\n", gtc_heap_view_closure_type_names[info->type]);
+
     switch (info->type) {
         case INVALID_OBJECT:
             barf("Invalid Object");
