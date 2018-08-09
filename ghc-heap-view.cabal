@@ -5,7 +5,7 @@ Description:
   This library provides functions to introspect the Haskell heap, for example
   to investigate sharing and lazy evaluation. As this is tied to the internals
   of the compiler, it only works with specific versions. Currently, GHC 7.4
-  through 7.10 should be supported.
+  through 8.2 should be supported.
   .
   It has been inspired by (and taken code from) the vacuum package and the GHCi
   debugger, but also allows to investigate thunks and other closures.
