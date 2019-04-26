@@ -22,7 +22,7 @@ gtc_heap_view_closure_ptrs_in_large_bitmap(StgClosure *ptrs[], StgWord *nptrs, S
                 ptrs[(*nptrs)++] = *p;
             }
             bitmap = bitmap >> 1;
-        }            
+        }
     }
 }
 
@@ -80,8 +80,13 @@ char *gtc_heap_view_closure_type_names[] = {
  [ARR_WORDS]             = "ARR_WORDS",
  [MUT_ARR_PTRS_CLEAN]    = "MUT_ARR_PTRS_CLEAN",
  [MUT_ARR_PTRS_DIRTY]    = "MUT_ARR_PTRS_DIRTY",
+#if defined(GHC_8_6)
+ [MUT_ARR_PTRS_FROZEN_DIRTY]  = "MUT_ARR_PTRS_FROZEN_DIRTY",
+ [MUT_ARR_PTRS_FROZEN_CLEAN]  = "MUT_ARR_PTRS_FROZEN_CLEAN",
+#else
  [MUT_ARR_PTRS_FROZEN0]  = "MUT_ARR_PTRS_FROZEN0",
  [MUT_ARR_PTRS_FROZEN]   = "MUT_ARR_PTRS_FROZEN",
+#endif
  [MUT_VAR_CLEAN]         = "MUT_VAR_CLEAN",
  [MUT_VAR_DIRTY]         = "MUT_VAR_DIRTY",
  [WEAK]                  = "WEAK",
@@ -96,8 +101,13 @@ char *gtc_heap_view_closure_type_names[] = {
  [WHITEHOLE]             = "WHITEHOLE",
  [SMALL_MUT_ARR_PTRS_CLEAN]   = "SMALL_MUT_ARR_PTRS_CLEAN",
  [SMALL_MUT_ARR_PTRS_DIRTY]   = "SMALL_MUT_ARR_PTRS_DIRTY",
+#if defined(GHC_8_6)
+ [SMALL_MUT_ARR_PTRS_FROZEN_CLEAN] = "SMALL_MUT_ARR_PTRS_FROZEN_CLEAN",
+ [SMALL_MUT_ARR_PTRS_FROZEN_DIRTY]  = "SMALL_MUT_ARR_PTRS_FROZEN_DIRTY",
+#else
  [SMALL_MUT_ARR_PTRS_FROZEN0] = "SMALL_MUT_ARR_PTRS_FROZEN0",
  [SMALL_MUT_ARR_PTRS_FROZEN]  = "SMALL_MUT_ARR_PTRS_FROZEN",
+#endif
 #if defined(GHC_8_2)
  [COMPACT_NFDATA]  = "COMPACT_NFDATA",
 #endif
@@ -212,7 +222,7 @@ StgMutArrPtrs *gtc_heap_view_closurePtrs(Capability *cap, StgClosure *closure) {
         case THUNK_SELECTOR:
             ptrs[nptrs++] = ((StgSelector *)closure)->selectee;
             break;
-            
+
         case AP:
             ptrs[nptrs++] = ((StgAP *)closure)->fun;
             gtc_heap_view_closure_ptrs_in_pap_payload(ptrs, &nptrs,
@@ -220,7 +230,7 @@ StgMutArrPtrs *gtc_heap_view_closurePtrs(Capability *cap, StgClosure *closure) {
                 ((StgAP *)closure)->payload,
                 ((StgAP *)closure)->n_args);
             break;
-            
+
         case PAP:
             ptrs[nptrs++] = ((StgPAP *)closure)->fun;
             gtc_heap_view_closure_ptrs_in_pap_payload(ptrs, &nptrs,
@@ -228,20 +238,20 @@ StgMutArrPtrs *gtc_heap_view_closurePtrs(Capability *cap, StgClosure *closure) {
                 ((StgPAP *)closure)->payload,
                 ((StgPAP *)closure)->n_args);
             break;
-            
+
         case AP_STACK:
             ptrs[nptrs++] = ((StgAP_STACK *)closure)->fun;
             for (i = 0; i < ((StgAP_STACK *)closure)->size; ++i) {
                 ptrs[nptrs++] = ((StgAP_STACK *)closure)->payload[i];
             }
             break;
-            
+
         case BCO:
             ptrs[nptrs++] = (StgClosure *)((StgBCO *)closure)->instrs;
             ptrs[nptrs++] = (StgClosure *)((StgBCO *)closure)->literals;
             ptrs[nptrs++] = (StgClosure *)((StgBCO *)closure)->ptrs;
             break;
-            
+
         case IND:
 #if defined(GHC_8_0)
         case IND_PERM:
@@ -253,8 +263,13 @@ StgMutArrPtrs *gtc_heap_view_closurePtrs(Capability *cap, StgClosure *closure) {
 
         case MUT_ARR_PTRS_CLEAN:
         case MUT_ARR_PTRS_DIRTY:
+#if defined(GHC_8_6)
+        case MUT_ARR_PTRS_FROZEN_CLEAN:
+        case MUT_ARR_PTRS_FROZEN_DIRTY:
+#else
         case MUT_ARR_PTRS_FROZEN:
         case MUT_ARR_PTRS_FROZEN0:
+#endif
             for (i = 0; i < ((StgMutArrPtrs *)closure)->ptrs; ++i) {
                 ptrs[nptrs++] = ((StgMutArrPtrs *)closure)->payload[i];
             }
@@ -275,10 +290,14 @@ StgMutArrPtrs *gtc_heap_view_closurePtrs(Capability *cap, StgClosure *closure) {
     }
 
     size = nptrs + mutArrPtrsCardTableSize(nptrs);
-    StgMutArrPtrs *arr = 
+    StgMutArrPtrs *arr =
         (StgMutArrPtrs *)allocate(cap, sizeofW(StgMutArrPtrs) + size);
     TICK_ALLOC_PRIM(sizeofW(StgMutArrPtrs), nptrs, 0);
+#if defined(GHC_8_6)
+    SET_HDR(arr, &stg_MUT_ARR_PTRS_FROZEN_CLEAN_info, CCCS);
+#else
     SET_HDR(arr, &stg_MUT_ARR_PTRS_FROZEN_info, CCCS);
+#endif
     arr->ptrs = nptrs;
     arr->size = size;
 

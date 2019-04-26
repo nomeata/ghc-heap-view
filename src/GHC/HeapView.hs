@@ -260,8 +260,8 @@ data ClosureType =
         | ARR_WORDS
         | MUT_ARR_PTRS_CLEAN
         | MUT_ARR_PTRS_DIRTY
-        | MUT_ARR_PTRS_FROZEN0
-        | MUT_ARR_PTRS_FROZEN
+        | MUT_ARR_PTRS_FROZEN_DIRTY
+        | MUT_ARR_PTRS_FROZEN_CLEAN
         | MUT_VAR_CLEAN
         | MUT_VAR_DIRTY
         | WEAK
@@ -276,8 +276,8 @@ data ClosureType =
         | WHITEHOLE
         | SMALL_MUT_ARR_PTRS_CLEAN
         | SMALL_MUT_ARR_PTRS_DIRTY
-        | SMALL_MUT_ARR_PTRS_FROZEN0
-        | SMALL_MUT_ARR_PTRS_FROZEN
+        | SMALL_MUT_ARR_PTRS_FROZEN_DIRTY_CLEAN
+        | SMALL_MUT_ARR_PTRS_FROZEN_DIRTY
 #if defined(GHC_8_2)
         | COMPACT_NFDATA
 #endif
@@ -629,9 +629,9 @@ getClosureData x = do
                 fail $ "Expected at least 2 words to ARR_WORDS, found " ++ show (length wds)
             return $ ArrWordsClosure itbl (wds !! 1) (drop 2 wds)
 
-        t | t == MUT_ARR_PTRS_FROZEN || t == MUT_ARR_PTRS_FROZEN0 -> do
+        t | t == MUT_ARR_PTRS_FROZEN_CLEAN || t == MUT_ARR_PTRS_FROZEN_DIRTY -> do
             unless (length wds >= 3) $
-                fail $ "Expected at least 3 words to MUT_ARR_PTRS_FROZEN0 found " ++ show (length wds)
+                fail $ "Expected at least 3 words to MUT_ARR_PTRS_FROZEN_DIRTY found " ++ show (length wds)
             return $ MutArrClosure itbl (wds !! 1) (wds !! 2) ptrs
 
         t | t == MUT_VAR_CLEAN || t == MUT_VAR_DIRTY ->
