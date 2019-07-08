@@ -1,4 +1,4 @@
-{-# LANGUAGE MagicHash, BangPatterns, CPP #-}
+{-# LANGUAGE MagicHash, BangPatterns #-}
 
 import GHC.Exts
 import GHC.HeapView
@@ -27,12 +27,7 @@ main = do
         unless eq $ fail "Doesn't reference list"
 
     getClosureData args >>= \ cl ->
-#if MIN_VERSION_GLASGOW_HASKELL(8,1,0,0)
         assertClosureType CONSTR_0_1 (info cl)
-#else
-        assertClosureType CONSTR_NOCAF_STATIC (info cl)
-#endif
-
     getClosureData x >>= \ cl ->
         assertClosureType THUNK_2_0 (info cl)
 
@@ -74,8 +69,8 @@ getClosureAssert :: a -> IO Closure
 getClosureAssert x = do
     cl <- getClosureData x
     case cl of
-        ConsClosure {} -> pure cl
-        _ -> fail "Expected ConsClosure"
+        ConstrClosure {} -> pure cl
+        _ -> fail "Expected ConstrClosure"
 
 
 assertClosureType :: ClosureType -> StgInfoTable -> IO ()

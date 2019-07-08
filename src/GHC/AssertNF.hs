@@ -2,7 +2,7 @@
 
 {-|
 Module      :  GHC.AssertNF
-Copyright   :  (c) 2013 Joachim Breitner
+Copyright   :  (c) 2013-2019 Joachim Breitner
 License     :  BSD3
 Maintainer  :  Joachim Breitner <mail@joachim-breitner.de>
 
@@ -114,9 +114,8 @@ assertNFBoxed !d b = do
     if nf
     then do
         c' <- getBoxedClosureData b
-        concat <$> mapM (assertNFBoxed (d+1)) (allPtrs c')
-    else do
-        return [d]
+        concat <$> mapM (assertNFBoxed (d+1)) (allClosures c')
+    else return [d]
 
 -- | Invoke this function at the top of your 'main' method to turn every call
 -- to 'assertNF' and its variants to noops.
@@ -136,9 +135,8 @@ isNFBoxed b = do
     if nf
     then do
         c' <- getBoxedClosureData b
-        allM isNFBoxed (allPtrs c')
-    else do
-        return False
+        allM isNFBoxed (allClosures c')
+    else return False
 
 -- From Control.Monad.Loops in monad-loops, but I'd like to avoid too many
 -- trivial dependencies

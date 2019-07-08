@@ -38,7 +38,7 @@ walkHeap slow check x = do
                 isCC <- isCharCons c
                 unless isCC $ do
                     modifyIORef seenRef ((b,prefix):)
-                    forM_ (zip [(0::Int)..] (allPtrs c)) $ \(n,box) ->
+                    forM_ (zip [(0::Int)..] (allClosures c)) $ \(n,box) ->
                         go seenRef (prefix ++ [n]) box
 
 walkPrefix :: [Int] -> a -> IO Box
@@ -47,7 +47,7 @@ walkPrefix is v = go is (asBox v)
     go [] a = return a
     go (x:xs) a = do
         c <- getBoxedClosureData a
-        walkPrefix xs (allPtrs c !! x)
+        walkPrefix xs (allClosures c !! x)
 
 
 findM :: (a -> IO Bool) -> [a] -> IO (Maybe a)
@@ -61,9 +61,9 @@ isCharCons c | Just (h,_) <- isCons c = (isJust . isChar) <$> getBoxedClosureDat
 isCharCons _ = return False
 
 isCons :: GenClosure b -> Maybe (b, b)
-isCons (ConsClosure { name = ":", dataArgs = [], ptrArgs = [h,t]}) = Just (h,t)
+isCons (ConstrClosure { name = ":", dataArgs = [], ptrArgs = [h,t]}) = Just (h,t)
 isCons _ = Nothing
 
 isChar :: GenClosure b -> Maybe Char
-isChar (ConsClosure { name = "C#", dataArgs = [ch], ptrArgs = []}) = Just (chr (fromIntegral ch))
+isChar (ConstrClosure { name = "C#", dataArgs = [ch], ptrArgs = []}) = Just (chr (fromIntegral ch))
 isChar _ = Nothing

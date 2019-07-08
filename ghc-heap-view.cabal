@@ -1,11 +1,11 @@
 Name:                ghc-heap-view
-Version:             0.5.11
+Version:             0.6.0
 Synopsis:            Extract the heap representation of Haskell values and thunks
 Description:
   This library provides functions to introspect the Haskell heap, for example
   to investigate sharing and lazy evaluation. As this is tied to the internals
-  of the compiler, it only works with specific versions. Currently, GHC 7.4
-  through 8.2 should be supported.
+  of the compiler, it only works with specific versions. This version supports,
+  GHC 8.6. For older GHC versions see ghc-heap-view-0.5.10.
   .
   It has been inspired by (and taken code from) the vacuum package and the GHCi
   debugger, but also allows to investigate thunks and other closures.
@@ -40,11 +40,12 @@ Description:
   .
   The work on this package has been supported by the Deutsche Telekom Stiftung
   (<http://telekom-stiftung.de>).
+tested-with: GHC == 8.6.1, GHC == 8.6.2, GHC == 8.6.3, GHC == 8.6.4, GHC == 8.6.5
 License:             BSD3
 License-file:        LICENSE
 Author:              Joachim Breitner, Dennis Felsing
 Maintainer:          Joachim Breitner <mail@joachim-breitner.de>
-Copyright:           2012-2014 Joachim Breitner
+Copyright:           2012-2019 Joachim Breitner
 bug-reports:         https://github.com/nomeata/ghc-heap-view
 Category:            Debug, GHC
 Build-type:          Custom
@@ -55,10 +56,6 @@ data-files:          ghci
 Flag prim-supports-any
     Description: The used GHC supports Any as an argument to foreign prim functions (GHC ticket #5931)
     Default: False
-
-Flag ghc_8_0
-
-Flag ghc_8_2
 
 custom-setup
   setup-depends: base
@@ -73,33 +70,15 @@ Library
     GHC.Disassembler
     GHC.HeapView.Debug
   Build-depends:
-    base >= 4.5 && < 4.13,
+    base >= 4.12 && < 4.13,
+    ghc-heap,
     containers,
     transformers,
     template-haskell,
     bytestring >= 0.10,
     binary
-
-  if flag(ghc_8_0)
-    build-depends: ghc >= 8.0 && < 8.2
-    cc-options: -DGHC_8_0
-    cpp-options: -DGHC_8_0
-  else
-    if flag(ghc_8_2)
-      build-depends: ghc >= 8.2 && < 8.6
-      cc-options: -DGHC_8_2
-      cpp-options: -DGHC_8_2
-    else
-      build-depends: ghc == 0.0
-
-
-  C-Sources: cbits/HeapView.c cbits/HeapViewPrim.cmm
   Hs-source-dirs: src/
   Ghc-options: -Wall
-  default-language: Haskell2010
-
-  if flag(prim-supports-any)
-    cpp-options: -DPRIM_SUPPORTS_ANY
 
 test-suite Test
   type:           exitcode-stdio-1.0
