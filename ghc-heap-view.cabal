@@ -49,7 +49,7 @@ Copyright:           2012-2019 Joachim Breitner
 bug-reports:         https://github.com/nomeata/ghc-heap-view
 Category:            Debug, GHC
 Build-type:          Custom
-Cabal-version:       >=1.23
+Cabal-version:       1.24
 Extra-source-files:  Demo.hs
 data-files:          ghci
 
