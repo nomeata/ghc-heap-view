@@ -1,5 +1,5 @@
 Name:                ghc-heap-view
-Version:             0.5.10
+Version:             0.5.11
 Synopsis:            Extract the heap representation of Haskell values and thunks
 Description:
   This library provides functions to introspect the Haskell heap, for example
@@ -48,7 +48,7 @@ Copyright:           2012-2014 Joachim Breitner
 bug-reports:         https://github.com/nomeata/ghc-heap-view
 Category:            Debug, GHC
 Build-type:          Custom
-Cabal-version:       >=1.23
+Cabal-version:       >=1.24
 Extra-source-files:  Demo.hs
 data-files:          ghci
 
@@ -60,10 +60,12 @@ Flag ghc_8_0
 
 Flag ghc_8_2
 
+Flag ghc_8_4
+
 custom-setup
   setup-depends: base
   setup-depends: filepath
-  setup-depends: Cabal >= 1.24 && < 2.1
+  setup-depends: Cabal >= 1.24 && < 3.2
 
 Library
   Default-Language:    Haskell2010
@@ -73,7 +75,7 @@ Library
     GHC.Disassembler
     GHC.HeapView.Debug
   Build-depends:
-    base >= 4.5 && < 4.11,
+    base >= 4.5 && < 4.12,
     containers,
     transformers,
     template-haskell,
@@ -90,13 +92,17 @@ Library
       cc-options: -DGHC_8_2
       cpp-options: -DGHC_8_2
     else
-      build-depends: ghc == 0.0
+      if flag(ghc_8_4)
+        build-depends: ghc >= 8.4 && < 8.6
+        cc-options: -DGHC_8_4
+        cpp-options: -DGHC_8_4
+      else
+        build-depends: ghc == 0.0
 
 
   C-Sources: cbits/HeapView.c cbits/HeapViewPrim.cmm
   Hs-source-dirs: src/
   Ghc-options: -Wall
-  default-language: Haskell2010
 
   if flag(prim-supports-any)
     cpp-options: -DPRIM_SUPPORTS_ANY
