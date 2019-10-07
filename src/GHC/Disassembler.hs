@@ -13,9 +13,6 @@ import Data.Binary.Get
 import Data.Word
 import Data.Int
 import Data.Bits
-import Data.Foldable    ( Foldable )
-import Data.Traversable ( Traversable )
-import Control.Applicative ((<$>))
 
 #include "ghcautoconf.h"
 #include "rts/Bytecodes.h"

@@ -5,6 +5,7 @@
 # lines listings versions you don't need/want testing for.
 env:
  - CABALVER=2.4 GHCVER=8.6.3
+ - CABALVER=2.4 GHCVER=8.8.1
  - CABALVER=head GHCVER=head   # see section about GHC HEAD snapshots
 
 matrix:

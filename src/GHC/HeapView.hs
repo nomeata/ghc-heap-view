@@ -65,12 +65,9 @@ import Foreign          hiding ( void )
 import Data.Char
 import Data.List
 import Data.Maybe       ( catMaybes )
-import Data.Monoid      ( Monoid, (<>), mempty )
 import Data.Functor
 import Data.Function
-import Data.Foldable    ( Foldable )
 import qualified Data.Foldable as F
-import Data.Traversable ( Traversable )
 import qualified Data.Traversable as T
 import qualified Data.IntMap as M
 import Control.Monad
@@ -84,11 +81,13 @@ import GHC.Disassembler
 
 #include "ghcautoconf.h"
 
+#if __GLASGOW_HASKELL__ == 806
 -- Deriving for Functor, Foldable and Traversable is missing in  GHC 8.6
 -- will be available in GHC 8.8
 deriving instance Functor GenClosure
 deriving instance Foldable GenClosure
 deriving instance Traversable GenClosure
+#endif
 
 instance Storable StgInfoTable where
 
