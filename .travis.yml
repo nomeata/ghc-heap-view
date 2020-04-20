@@ -6,6 +6,7 @@
 env:
  - CABALVER=2.4 GHCVER=8.6.3
  - CABALVER=2.4 GHCVER=8.8.1
+ - CABALVER=3.2 GHCVER=8.10.1
  - CABALVER=head GHCVER=head   # see section about GHC HEAD snapshots
 
 matrix:
@@ -25,7 +26,8 @@ install:
  - cabal --version
  - echo "$(ghc --version) [$(ghc --print-project-git-commit-id 2> /dev/null || echo '?')]"
  - travis_retry cabal update
- - cabal install --only-dependencies --enable-tests --enable-benchmarks
+ # unnecessary and fails on older cabal-install:
+ - if (( $(echo "$CABALVER < 3.2" |bc -l) )); then cabal install --only-dependencies --enable-tests --enable-benchmarks ; fi 
 
 # Here starts the actual work to be performed for the package under
 # test; any command which exits with a non-zero exit code causes the

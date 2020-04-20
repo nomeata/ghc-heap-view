@@ -1,5 +1,5 @@
 Name:                ghc-heap-view
-Version:             0.6.1
+Version:             0.6.2
 Synopsis:            Extract the heap representation of Haskell values and thunks
 Description:
   This library provides functions to introspect the Haskell heap, for example
@@ -41,7 +41,7 @@ Description:
   .
   The work on this package has been supported by the Deutsche Telekom Stiftung
   (<http://telekom-stiftung.de>).
-tested-with: GHC == 8.6.1, GHC == 8.6.2, GHC == 8.6.3, GHC == 8.6.4, GHC == 8.6.5, GHC == 8.8.1
+tested-with: GHC == 8.6.1, GHC == 8.6.2, GHC == 8.6.3, GHC == 8.6.4, GHC == 8.6.5, GHC == 8.8.1, GHC == 8.10.1
 License:             BSD3
 License-file:        LICENSE
 Author:              Joachim Breitner, Dennis Felsing
@@ -61,7 +61,7 @@ Flag prim-supports-any
 custom-setup
   setup-depends: base
   setup-depends: filepath
-  setup-depends: Cabal >= 1.24 && < 3.2
+  setup-depends: Cabal >= 1.24 && < 3.3
 
 Library
   Default-Language:    Haskell2010
@@ -71,7 +71,7 @@ Library
     GHC.Disassembler
     GHC.HeapView.Debug
   Build-depends:
-    base >= 4.12 && < 4.14,
+    base >= 4.12 && < 4.15,
     ghc-heap,
     containers,
     transformers,
