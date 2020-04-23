@@ -48,7 +48,9 @@ script:
  - cabal sdist
 
  # check that the generated source-distribution can be built & installed
- - SRC_TGZ=$(cabal info . | awk '{print $2;exit}').tar.gz &&
-   (cd dist && cabal install --force-reinstalls "$SRC_TGZ")
+ # TODO I'm not sure how to ask cabal new-style to install an sdist tarball directly...
+ - if (( $(echo "$CABALVER < 3.2" |bc -l) )); then DIST="dist" INSTALL_SUBCOMMAND="install"; else DIST="dist-newstyle/sdist" INSTALL_SUBCOMMAND="v1-install"; fi &&
+   SRC_TGZ=$(cabal info . | awk '{print $2;exit}').tar.gz &&
+   (cabal $INSTALL_SUBCOMMAND --force-reinstalls "$DIST/$SRC_TGZ")
 
 # EOF
