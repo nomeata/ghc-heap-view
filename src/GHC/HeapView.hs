@@ -254,6 +254,14 @@ ppClosure showBox prec c = case c of
         "_other"
     UnsupportedClosure {..} ->
         "_unsupported"
+#if MIN_VERSION_ghc_heap(8,10,1)
+    -- copy-pasta'd from MutArrClosure:
+    SmallMutArrClosure {..} -> app
+        --["toMutArray", "("++show (length mccPayload) ++ " ptrs)",  intercalate "," (shorten (map (showBox 10) mccPayload))]
+        ["[", intercalate ", " (shorten (map (showBox 10) mccPayload)),"]"]
+    WeakClosure {..} ->
+        "_weak"
+#endif
   where
     app [a] = a  ++ "()"
     app xs = addBraces (10 <= prec) (intercalate " " xs)
