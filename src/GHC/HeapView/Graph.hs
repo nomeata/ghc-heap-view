@@ -1,4 +1,4 @@
-{-# LANGUAGE LambdaCase, RecordWildCards #-}
+{-# LANGUAGE CPP, LambdaCase, RecordWildCards #-}
 {- | Conversions between 'HeapGraph' and 'Graph'.
 
 You may also be interested in the @graphviz@ package which has conversions
@@ -22,7 +22,11 @@ import Data.Graph.Inductive.PatriciaTree (Gr)
 
 import Control.Monad.Trans.Class
 import Control.Monad.Trans.Maybe
+#if MIN_VERSION_transformers(0,5,6)
 import Control.Monad.Trans.Writer.CPS
+#else
+import Control.Monad.Trans.Writer.Strict
+#endif
 import qualified Data.IntMap as M
 import qualified Data.Foldable as F
 import Data.List
