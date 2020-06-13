@@ -26,6 +26,7 @@ module GHC.HeapView (
     getClosureRaw,
     -- * Pretty printing
     ppClosure,
+    ppClosureF,
     -- * Heap maps
     -- $heapmap
     HeapTree(..),
@@ -48,6 +49,9 @@ module GHC.HeapView (
     areBoxesEqual,
     -- * Disassembler
     disassembleBCO,
+    -- * Internals
+    isNil, isCons, isChar, isListF, isStringF,
+    addBraces, boundMultipleTimes, allBindings, ppBindingMap
     )
     where
 
@@ -66,11 +70,14 @@ import Data.Char
 import Data.List
 import Data.Maybe       ( catMaybes )
 import Data.Functor
+import Data.Functor.Identity
 import Data.Function
 import qualified Data.Foldable as F
 import qualified Data.Traversable as T
 import qualified Data.IntMap as M
+import Control.Applicative
 import Control.Monad
+import Control.Monad.Trans.Maybe
 import Control.Monad.Trans.State
 import Control.Monad.Trans.Class
 import Control.Monad.IO.Class
@@ -198,69 +205,72 @@ isNil _ = False
 --
 -- The parameter gives the precedendence, to avoid avoidable parenthesises.
 ppClosure :: (Int -> b -> String) -> Int -> GenClosure b -> String
-ppClosure showBox prec c = case c of
-    _ | Just ch <- isChar c -> app $
-        ["C#", show ch]
-    _ | Just (h,t) <- isCons c -> addBraces (5 <= prec) $
-        showBox 5 h ++ " : " ++ showBox 4 t
+ppClosure f i c = runIdentity $ ppClosureF ((Identity .) . f) i c
+
+ppClosureF :: Applicative f => (Int -> b -> f String) -> Int -> GenClosure b -> f String
+ppClosureF showBox prec c = case c of
+    _ | Just ch <- isChar c -> app <$>
+        pure ["C#", show ch]
+    _ | Just (h,t) <- isCons c -> addBraces (5 <= prec) <$>
+        liftA2 (\x y -> x ++ " : " ++ y) (showBox 5 h) (showBox 4 t)
     _ | Just vs <- isTup c ->
-        "(" ++ intercalate "," (map (showBox 0) vs) ++ ")"
-    ConstrClosure {..} -> app $
-        name : map (showBox 10) ptrArgs ++ map show dataArgs
-    ThunkClosure {..} -> app $
-        "_thunk" : map (showBox 10) ptrArgs ++ map show dataArgs
-    SelectorClosure {..} -> app
-        ["_sel", showBox 10 selectee]
-    IndClosure {..} -> app
-        ["_ind", showBox 10 indirectee]
-    BlackholeClosure {..} -> app
-        ["_bh",  showBox 10 indirectee]
-    APClosure {..} -> app $ map (showBox 10) $
-        fun : payload
-    PAPClosure {..} -> app $ map (showBox 10) $
-        fun : payload
-    APStackClosure {..} -> app $ map (showBox 10) $
-        fun : payload
-    BCOClosure {..} -> app
-        ["_bco", showBox 10 bcoptrs]
-    ArrWordsClosure {..} -> app
-        ["toArray", "("++show (length arrWords) ++ " words)", intercalate "," (shorten (map show arrWords)) ]
-    MutArrClosure {..} -> app
+        (\x -> "(" ++ intercalate "," x ++ ")") <$> (traverse (showBox 0) vs)
+    ConstrClosure {..} -> app <$>
+        (\x -> name : x ++ map show dataArgs) <$> (traverse (showBox 10) ptrArgs)
+    ThunkClosure {..} -> app <$>
+        (\x -> "_thunk" : x ++ map show dataArgs) <$> (traverse (showBox 10) ptrArgs)
+    SelectorClosure {..} -> app <$>
+        (\x -> ["_sel", x]) <$> showBox 10 selectee
+    IndClosure {..} -> app <$>
+        (\x -> ["_ind", x]) <$> showBox 10 indirectee
+    BlackholeClosure {..} -> app <$>
+        (\x -> ["_bh", x]) <$> showBox 10 indirectee
+    APClosure {..} -> app <$> traverse (showBox 10)
+        (fun : payload)
+    PAPClosure {..} -> app <$> traverse (showBox 10)
+        (fun : payload)
+    APStackClosure {..} -> app <$> traverse (showBox 10)
+        (fun : payload)
+    BCOClosure {..} -> app <$>
+        (\x -> ["_bco", x]) <$> showBox 10 bcoptrs
+    ArrWordsClosure {..} -> app <$>
+        pure ["toArray", "("++show (length arrWords) ++ " words)", intercalate "," (shorten (map show arrWords)) ]
+    MutArrClosure {..} -> app <$>
         --["toMutArray", "("++show (length mccPayload) ++ " ptrs)",  intercalate "," (shorten (map (showBox 10) mccPayload))]
-        ["[", intercalate ", " (shorten (map (showBox 10) mccPayload)),"]"]
-    MutVarClosure {..} -> app $
-        ["_mutVar", (showBox 10) var]
-    MVarClosure {..} -> app $
-        ["MVar", (showBox 10) value]
+        (\x -> ["[", intercalate ", " (shorten x),"]"]) <$> traverse (showBox 10) mccPayload
+    MutVarClosure {..} -> app <$>
+        (\x -> ["_mutVar", x]) <$> showBox 10 var
+    MVarClosure {..} -> app <$>
+        (\x -> ["MVar", x]) <$> showBox 10 value
     FunClosure {..} ->
-        "_fun" ++ braceize (map (showBox 0) ptrArgs ++ map show dataArgs)
+        (\x -> "_fun" ++ braceize (x ++ map show dataArgs)) <$> traverse (showBox 0) ptrArgs
     BlockingQueueClosure {..} ->
-        "_blockingQueue"
-    IntClosure {..} -> app
-        ["Int", show intVal]
-    WordClosure {..} -> app
-        ["Word", show wordVal]
-    Int64Closure {..} -> app
-        ["Int64", show int64Val]
-    Word64Closure {..} -> app
-        ["Word64", show word64Val]
-    AddrClosure {..} -> app
-        ["Addr", show addrVal]
-    FloatClosure {..} -> app
-        ["Float", show floatVal]
-    DoubleClosure {..} -> app
-        ["Double", show doubleVal]
+        pure "_blockingQueue"
+    IntClosure {..} -> app <$>
+        pure ["Int", show intVal]
+    WordClosure {..} -> app <$>
+        pure ["Word", show wordVal]
+    Int64Closure {..} -> app <$>
+        pure ["Int64", show int64Val]
+    Word64Closure {..} -> app <$>
+        pure ["Word64", show word64Val]
+    AddrClosure {..} -> app <$>
+        pure ["Addr", show addrVal]
+    FloatClosure {..} -> app <$>
+        pure ["Float", show floatVal]
+    DoubleClosure {..} -> app <$>
+        pure ["Double", show doubleVal]
     OtherClosure {..} ->
-        "_other"
+        pure "_other"
     UnsupportedClosure {..} ->
-        "_unsupported"
+        pure "_unsupported"
 #if MIN_VERSION_ghc_heap(8,10,1)
     -- copy-pasta'd from MutArrClosure:
-    SmallMutArrClosure {..} -> app
+    SmallMutArrClosure {..} -> app <$>
         --["toMutArray", "("++show (length mccPayload) ++ " ptrs)",  intercalate "," (shorten (map (showBox 10) mccPayload))]
-        ["[", intercalate ", " (shorten (map (showBox 10) mccPayload)),"]"]
+        (\x -> ["[", intercalate ", " (shorten x),"]"]) <$> traverse (showBox 10) mccPayload
     WeakClosure {..} ->
-        "_weak"
+        pure "_weak"
 #endif
   where
     app [a] = a  ++ "()"
@@ -500,23 +510,9 @@ ppHeapGraph (HeapGraph m) = letWrapper ++ ppRef 0 (Just heapGraphRoot)
         then ""
         else "let " ++ intercalate "\n    " (map ppBinding bindings) ++ "\nin "
 
-    bindingLetter i = case hgeClosure (iToE i) of
-        ThunkClosure {..} -> 't'
-        SelectorClosure {..} -> 't'
-        APClosure {..} -> 't'
-        PAPClosure {..} -> 'f'
-        BCOClosure {..} -> 't'
-        FunClosure {..} -> 'f'
-        _ -> 'x'
+    ppBindingMap' = ppBindingMap m bindings
 
-    ppBindingMap = M.fromList $
-        concat $
-        map (zipWith (\j (i,c) -> (i, [c] ++ show j)) [(1::Int)..]) $
-        groupBy ((==) `on` snd) $
-        sortBy (compare `on` snd)
-        [ (i, bindingLetter i) | i <- bindings ]
-
-    ppVar i = ppBindingMap M.! i
+    ppVar i = ppBindingMap' M.! i
     ppBinding i = ppVar i ++ " = " ++ ppEntry 0 (iToE i)
 
     ppEntry prec hge
@@ -536,31 +532,60 @@ ppHeapGraph (HeapGraph m) = letWrapper ++ ppRef 0 (Just heapGraphRoot)
 
     iToUnboundE i = if i `elem` bindings then Nothing else M.lookup i m
 
-    isList :: HeapGraphEntry a -> Maybe ([Maybe HeapGraphIndex])
-    isList hge =
-        if isNil (hgeClosure hge)
-          then return []
-          else do
-            (h,t) <- isCons (hgeClosure hge)
-            ti <- t
-            e <- iToUnboundE ti
-            t' <- isList e
-            return $ (:) h t'
+    isList hge = runIdentity $ runMaybeT $ isListF (maybeT . iToUnboundE) hge
 
-    isString :: HeapGraphEntry a -> Maybe String
-    isString e = do
-        list <- isList e
-        -- We do not want to print empty lists as "" as we do not know that they
-        -- are really strings.
-        if (null list)
-            then Nothing
-            else mapM (isChar . hgeClosure <=< iToUnboundE <=< id) list
+    isString e = runIdentity $ runMaybeT $ isStringF (maybeT . iToUnboundE) e
 
+maybeT :: Monad m => Maybe a -> MaybeT m a
+maybeT = MaybeT . pure
+
+isListF :: Monad m => (HeapGraphIndex -> MaybeT m (HeapGraphEntry a)) -> HeapGraphEntry a -> MaybeT m [Maybe HeapGraphIndex]
+isListF iToUnboundE hge =
+    if isNil (hgeClosure hge)
+      then pure []
+      else do
+        (h,t) <- maybeT $ isCons (hgeClosure hge)
+        ti <- maybeT $ t
+        e <- iToUnboundE ti
+        t' <- isListF iToUnboundE e
+        pure $ (:) h t'
+
+isStringF :: Monad m => (HeapGraphIndex -> MaybeT m (HeapGraphEntry a)) -> HeapGraphEntry a -> MaybeT m String
+isStringF iToUnboundE e = do
+    list <- isListF iToUnboundE e
+    -- We do not want to print empty lists as "" as we do not know that they
+    -- are really strings.
+    if (null list)
+        then maybeT $ Nothing
+        else mapM (maybeT . isChar . hgeClosure <=< iToUnboundE <=< maybeT) list
+
+ppBindingMap :: M.IntMap (HeapGraphEntry a) -> [Int] -> M.IntMap String
+ppBindingMap m bindings = M.fromList $
+    concat $
+    map (zipWith (\j (i,c) -> (i, [c] ++ show j)) [(1::Int)..]) $
+    groupBy ((==) `on` snd) $
+    sortBy (compare `on` snd)
+    [ (i, bindingLetter i) | i <- bindings ]
+  where
+    bindingLetter i = case hgeClosure (m M.! i) of
+      ThunkClosure {} -> 't'
+      SelectorClosure {} -> 't'
+      APClosure {} -> 't'
+      PAPClosure {} -> 'f'
+      BCOClosure {} -> 't'
+      FunClosure {} -> 'f'
+      _ -> 'x'
 
 -- | In the given HeapMap, list all indices that are used more than once. The
 -- second parameter adds external references, commonly @[heapGraphRoot]@.
 boundMultipleTimes :: HeapGraph a -> [HeapGraphIndex] -> [HeapGraphIndex]
 boundMultipleTimes (HeapGraph m) roots = map head $ filter (not.null) $ map tail $ group $ sort $
+     roots ++ concatMap (catMaybes . allClosures . hgeClosure) (M.elems m)
+
+-- | In the given HeapMap, list all indices. The second parameter adds external
+-- references, commonly @[heapGraphRoot]@.
+allBindings :: HeapGraph a -> [HeapGraphIndex] -> [HeapGraphIndex]
+allBindings (HeapGraph m) roots = map head $ group $ sort $
      roots ++ concatMap (catMaybes . allClosures . hgeClosure) (M.elems m)
 
 -- | This function integrates the disassembler in "GHC.Disassembler". The first

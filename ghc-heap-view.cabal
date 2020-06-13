@@ -70,8 +70,10 @@ Library
     GHC.AssertNF
     GHC.Disassembler
     GHC.HeapView.Debug
+    GHC.HeapView.Graph
   Build-depends:
     base >= 4.12 && < 4.15,
+    fgl,
     ghc-heap,
     containers,
     transformers,
