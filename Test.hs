@@ -38,16 +38,16 @@ main = do
     getClosureData f >>= \ cl -> do
         assertClosureType FUN_1_1 (info cl)
         unless (dataArgs cl == [42]) $ do
-            fail "Wrong data arg"
+            fail $ "Type FUN_1_1: Wrong data arg '" <> show (dataArgs cl) <> "'"
 
     let t = f m' list2
     getClosureData t >>= \ cl -> do
         assertClosureType THUNK (info cl)
         unless (dataArgs cl == [23]) $ do
-            fail "Wrong data arg"
+            fail $ "Type THUNK Wrong data arg '" <> show (dataArgs cl) <> "'"
 
         eq <- areBoxesEqual (ptrArgs cl !! 1) (asBox f)
-        unless eq $ fail "t doesnt reference f"
+        unless eq $ fail $ "Thunk doesnt reference function:\n\tthunk pointer = '" <> show (ptrArgs cl !! 1) <> "'\n\tfunction box = '" <> show (asBox f) <> "'\n"
 
     let z = id (:) () z
     z `seq` pure ()
