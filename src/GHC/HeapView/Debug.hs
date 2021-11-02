@@ -58,11 +58,3 @@ findM p (x:xs) = do
 isCharCons :: GenClosure Box -> IO Bool
 isCharCons c | Just (h,_) <- isCons c = (isJust . isChar) <$> getBoxedClosureData h
 isCharCons _ = return False
-
-isCons :: GenClosure b -> Maybe (b, b)
-isCons (ConstrClosure { name = ":", dataArgs = [], ptrArgs = [h,t]}) = Just (h,t)
-isCons _ = Nothing
-
-isChar :: GenClosure b -> Maybe Char
-isChar (ConstrClosure { name = "C#", dataArgs = [ch], ptrArgs = []}) = Just (chr (fromIntegral ch))
-isChar _ = Nothing
