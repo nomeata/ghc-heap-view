@@ -76,7 +76,7 @@ Library
     containers,
     transformers,
     template-haskell,
-    bytestring >= 0.10,
+    bytestring >= 0.10.2,
     binary
   Hs-source-dirs: src/
   Ghc-options: -Wall
