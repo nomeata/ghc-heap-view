@@ -61,7 +61,7 @@ Flag prim-supports-any
 custom-setup
   setup-depends: base
   setup-depends: filepath
-  setup-depends: Cabal >= 1.24 && < 3.3
+  setup-depends: Cabal >= 1.24 && < 3.7
 
 Library
   Default-Language:    Haskell2010
@@ -71,7 +71,7 @@ Library
     GHC.Disassembler
     GHC.HeapView.Debug
   Build-depends:
-    base >= 4.12 && < 4.15,
+    base >= 4.12 && < 4.17,
     ghc-heap,
     containers,
     transformers,
