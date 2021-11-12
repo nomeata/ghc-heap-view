@@ -32,7 +32,7 @@ main = do
 
     let !(I# m) = length args + 42
     let !(I# m') = length args + 23
-    let f = \ y n -> take (I# m + I# y) n ++ args
+    let f = \ y n -> take (I# m + I# y + 1) n ++ args
     performGC
 
     getClosureData f >>= \ cl -> do
