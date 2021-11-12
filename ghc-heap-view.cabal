@@ -41,7 +41,7 @@ Description:
   .
   The work on this package has been supported by the Deutsche Telekom Stiftung
   (<http://telekom-stiftung.de>).
-tested-with: GHC == 8.6.1, GHC == 8.6.2, GHC == 8.6.3, GHC == 8.6.4, GHC == 8.6.5, GHC == 8.8.1, GHC == 8.10.1
+tested-with: GHC == 8.6.1, GHC == 8.6.2, GHC == 8.6.3, GHC == 8.6.4, GHC == 8.6.5, GHC == 8.8.1, GHC == 8.10.1, GHC == 9.0.1, GHC == 9.2.1
 License:             BSD3
 License-file:        LICENSE
 Author:              Joachim Breitner, Dennis Felsing
