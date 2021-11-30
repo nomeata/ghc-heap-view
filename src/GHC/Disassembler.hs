@@ -7,8 +7,8 @@ module GHC.Disassembler (
 
 import qualified Data.ByteString.Lazy as BS
 import Data.ByteString.Lazy (ByteString)
-import Data.ByteString.Lazy.Builder
-import Data.ByteString.Lazy.Builder.Extras
+import Data.ByteString.Builder
+import Data.ByteString.Builder.Extra
 import Data.Binary.Get
 import Data.Word
 import Data.Int
