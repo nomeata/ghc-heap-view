@@ -59,7 +59,7 @@ Flag prim-supports-any
     Default: False
 
 custom-setup
-  setup-depends: base
+  setup-depends: base >= 4.12 && < 4.18
   setup-depends: filepath
   setup-depends: Cabal >= 1.24 && < 3.9
 
