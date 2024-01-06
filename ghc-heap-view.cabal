@@ -41,7 +41,7 @@ Description:
   .
   The work on this package has been supported by the Deutsche Telekom Stiftung
   (<http://telekom-stiftung.de>).
-tested-with: GHC == 8.6.1, GHC == 8.6.2, GHC == 8.6.3, GHC == 8.6.4, GHC == 8.6.5, GHC == 8.8.1, GHC == 8.10.1, GHC == 9.0.1, GHC == 9.2.1
+tested-with: GHC == 8.6.1, GHC == 8.6.2, GHC == 8.6.3, GHC == 8.6.4, GHC == 8.6.5, GHC == 8.8.1, GHC == 8.10.1, GHC == 9.0.1, GHC == 9.2.1, GHC == 9.2.8, GHC == 9.4.8, GHC == 9.6.3, GHC == 9.8.1
 License:             BSD3
 License-file:        LICENSE
 Author:              Joachim Breitner, Dennis Felsing
@@ -59,9 +59,9 @@ Flag prim-supports-any
     Default: False
 
 custom-setup
-  setup-depends: base >= 4.12 && < 4.18
+  setup-depends: base >= 4.12 && < 4.20
   setup-depends: filepath
-  setup-depends: Cabal >= 1.24 && < 3.9
+  setup-depends: Cabal >= 1.24 && < 3.11
 
 Library
   Default-Language:    Haskell2010
@@ -71,7 +71,7 @@ Library
     GHC.Disassembler
     GHC.HeapView.Debug
   Build-depends:
-    base >= 4.12 && < 4.18,
+    base >= 4.12 && < 4.20,
     ghc-heap,
     containers,
     transformers,
